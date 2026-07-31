@@ -13,11 +13,60 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow: hidden;
   background:
     radial-gradient(circle at 8% 15%, rgba(31, 73, 129, 0.45), transparent 35%),
     radial-gradient(circle at 90% 0%, rgba(52, 65, 128, 0.35), transparent 30%),
     linear-gradient(180deg, #0a0f1c 0%, #060912 100%);
+  transition: background 0.3s ease, color 0.3s ease;
 }
+
+body.light-mode {
+  color: #1a202c;
+  background: 
+    radial-gradient(circle at 8% 15%, rgba(162, 192, 232, 0.45), transparent 35%),
+    radial-gradient(circle at 90% 0%, rgba(180, 190, 220, 0.35), transparent 30%),
+    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+body.light-mode .workspace-shell {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(240, 245, 250, 0.92));
+  border-color: rgba(131, 157, 207, 0.5);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .topbar,
+body.light-mode .sidebar-rail {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(245, 250, 255, 0.85));
+  border-color: rgba(130, 153, 196, 0.4);
+}
+
+body.light-mode .brand { color: #1e293b; }
+body.light-mode .search-wrap { background: rgba(230, 235, 245, 0.75); border-color: rgba(131, 157, 207, 0.4); }
+body.light-mode .search-wrap input { color: #334155; }
+body.light-mode .icon-btn { background: rgba(240, 245, 250, 0.9); border-color: rgba(131, 157, 207, 0.5); color: #475569; }
+body.light-mode .canvas-stage { background: linear-gradient(145deg, rgba(248, 250, 252, 0.92), rgba(226, 232, 240, 0.9)); border-color: rgba(131, 157, 207, 0.5); }
+body.light-mode .canvas-stage::before { background-image: radial-gradient(rgba(118, 136, 176, 0.4) 1px, transparent 1px); }
+body.light-mode .floating-panel { background: rgba(255, 255, 255, 0.9); border-color: rgba(131, 157, 207, 0.5); color: #1e293b; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); }
+body.light-mode .nav-dot { background: rgba(240, 245, 250, 0.8); color: #64748b; border-color: rgba(131, 157, 207, 0.4); }
+body.light-mode .nav-dot.active { background: rgba(220, 235, 255, 0.9); color: #0284c7; border-color: #38bdf8; }
+body.light-mode .node-card { background: rgba(255, 255, 255, 0.95); color: #0f172a; border-color: rgba(131, 157, 207, 0.6); }
+body.light-mode .node-card small { color: #475569; }
+body.light-mode .repo-tree { background: rgba(255, 255, 255, 0.9); border-color: rgba(131, 157, 207, 0.5); color: #1e293b; }
+body.light-mode .repo-tree ul { color: #475569; }
+body.light-mode .metric { background: rgba(248, 250, 252, 0.9); border-color: rgba(131, 157, 207, 0.5); }
+body.light-mode .metric span { color: #475569; }
+body.light-mode .timeline-strip { background: rgba(255, 255, 255, 0.9); border-color: rgba(131, 157, 207, 0.5); }
+body.light-mode .timeline-strip > span { color: #475569; }
+body.light-mode .timeline-points { color: #1e293b; }
+body.light-mode .panel-activity-card ul { color: #475569; }
+body.light-mode .error-log { background: rgba(240, 245, 250, 0.9); color: #047857; border-color: rgba(131, 157, 207, 0.5); }
+body.light-mode .error-header { color: #475569; }
+body.light-mode .error-list-item { background: rgba(255, 255, 255, 0.9); color: #475569; border-color: rgba(131, 157, 207, 0.5); }
+body.light-mode .chat-message { background: rgba(248, 250, 252, 0.9); border-color: rgba(131, 157, 207, 0.5); }
+body.light-mode .chat-message p { color: #1e293b; }
+body.light-mode .chat-message strong { color: #475569; }
+body.light-mode .chat-form input { background: rgba(255, 255, 255, 0.9); color: #1e293b; border-color: rgba(131, 157, 207, 0.5); }
 
 #root {
   min-height: 100vh;

@@ -53,6 +53,37 @@ const useAppStore = create((set, get) => ({
   selectedNodeId: null,
   dashboardLoading: false,
   dashboardError: null,
+  
+  // Theme state
+  theme: localStorage.getItem("gitmind_theme") || "dark",
+  toggleTheme: () => set((state) => {
+    const newTheme = state.theme === "dark" ? "light" : "dark";
+    localStorage.setItem("gitmind_theme", newTheme);
+    if (newTheme === "light") {
+      document.body.classList.add("light-mode");
+    } else {
+      document.body.classList.remove("light-mode");
+    }
+    return { theme: newTheme };
+  }),
+  
+  // Auth state
+  token: localStorage.getItem("gitmind_token") || null,
+  user: null,
+
+  setToken: (token) => {
+    if (token) {
+      localStorage.setItem("gitmind_token", token);
+    } else {
+      localStorage.removeItem("gitmind_token");
+    }
+    set({ token });
+  },
+
+  logout: () => {
+    localStorage.removeItem("gitmind_token");
+    set({ token: null, user: null });
+  },
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),
 

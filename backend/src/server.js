@@ -10,6 +10,7 @@ const { verifyGithubSignature } = require("./webhooks/githubReceiver");
 const { routeGithubEvent } = require("./webhooks/eventRouter");
 const { getRepos, getRepoCommits } = require("./controllers/repoController");
 const { postChat } = require("./controllers/chatController");
+const { redirectGithub, handleGithubCallback } = require("./controllers/authController");
 
 const app = express();
 app.use(cors());
@@ -20,6 +21,9 @@ app.get("/repos", getRepos);
 app.get("/repos/:id/commits", getRepoCommits);
 app.post("/chat", postChat);
 app.post("/webhooks/github", verifyGithubSignature, routeGithubEvent);
+
+app.get("/auth/github", redirectGithub);
+app.get("/auth/github/callback", handleGithubCallback);
 
 const server = http.createServer(app);
 const io = new Server(server, {
