@@ -14,32 +14,27 @@ function nowTime() {
 
 function mapRepository(rawRepo) {
   return {
-    id: String(rawRepo?._id || rawRepo?.id || rawRepo?.name || crypto.randomUUID()),
-    name: rawRepo?.name || "Unnamed Repository",
+    id: String(rawRepo?._id || rawRepo?.id),
+    name: rawRepo?.name,
     branches: Array.isArray(rawRepo?.branches) ? rawRepo.branches : [],
     files: Array.isArray(rawRepo?.files) ? rawRepo.files : [],
   };
 }
 
 function mapCommitToPullRequest(rawCommit, index) {
-  const fallbackNumber = index + 1;
   return {
-    id: String(rawCommit?.id || rawCommit?.sha || `commit-${fallbackNumber}`),
-    number: rawCommit?.number || fallbackNumber,
-    title: rawCommit?.title || rawCommit?.message || "Commit",
-    author: rawCommit?.author || "Unknown",
-    status: rawCommit?.status || "unknown",
-    branch: rawCommit?.branch || "unknown",
-    testsPassed: rawCommit?.testsPassed || 0,
-    testsTotal: rawCommit?.testsTotal || 0,
-    buildTime: rawCommit?.buildTime || "--",
-    securityScan: rawCommit?.securityScan || "unknown",
-    aiFixPr: rawCommit?.aiFixPr || "--",
-    approvals: [
-      { id: `ap-build-${fallbackNumber}`, label: "Build Passed", done: false },
-      { id: `ap-sec-${fallbackNumber}`, label: "Security Scan Passed", done: false },
-      { id: `ap-review-${fallbackNumber}`, label: "Lead Engineer Review", done: false },
-    ],
+    id: String(rawCommit?.id || rawCommit?.sha || rawCommit?._id),
+    number: rawCommit?.number,
+    title: rawCommit?.title || rawCommit?.message,
+    author: rawCommit?.author,
+    status: rawCommit?.status,
+    branch: rawCommit?.branch,
+    testsPassed: rawCommit?.testsPassed,
+    testsTotal: rawCommit?.testsTotal,
+    buildTime: rawCommit?.buildTime,
+    securityScan: rawCommit?.securityScan,
+    aiFixPr: rawCommit?.aiFixPr,
+    approvals: rawCommit?.approvals || [],
   };
 }
 

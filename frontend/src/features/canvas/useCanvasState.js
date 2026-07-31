@@ -22,7 +22,8 @@ function useCanvasState() {
         .flatMap((pr, index) => {
           const baseX = 240 + index * 440;
           const baseY = 240;
-          return [
+          
+          const nodesList = [
             {
               id: `node-${pr.id}`,
               type: "commit",
@@ -33,8 +34,11 @@ function useCanvasState() {
                 status: pr.status,
                 selected: selectedNodeId === `node-${pr.id}`,
               },
-            },
-            {
+            }
+          ];
+
+          if (pr.aiFixPr) {
+            nodesList.push({
               id: `node-ai-${pr.id}`,
               type: "ai",
               position: { x: baseX + 280, y: baseY },
@@ -46,17 +50,21 @@ function useCanvasState() {
                     : "Patch validated",
                 selected: selectedNodeId === `node-ai-${pr.id}`,
               },
-            },
-          ];
+            });
+          }
+          
+          return nodesList;
         })
         .map(sanitizeNode),
-      edges: pullRequests.map((pr) => ({
-        id: `edge-${pr.id}`,
-        source: `node-${pr.id}`,
-        target: `node-ai-${pr.id}`,
-        type: "custom",
-        animated: true,
-      })),
+      edges: pullRequests
+        .filter(pr => pr.aiFixPr)
+        .map((pr) => ({
+          id: `edge-${pr.id}`,
+          source: `node-${pr.id}`,
+          target: `node-ai-${pr.id}`,
+          type: "custom",
+          animated: true,
+        })),
     }),
     [pullRequests, selectedNodeId]
   );
