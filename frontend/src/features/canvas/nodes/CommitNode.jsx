@@ -1,16 +1,22 @@
+import { Handle, Position } from "reactflow";
+
 function CommitNode({ data }) {
+  const isSelected = Boolean(data?.selected);
   return (
-    <div
-      style={{
-        border: "1px solid #5f8b95",
-        borderRadius: "12px",
-        background: "#eff8fa",
-        padding: "0.6rem 0.75rem",
-        minWidth: 160,
-      }}
-    >
-      <strong>Commit</strong>
-      <div>{data?.label || "unknown"}</div>
+    <div className={`node-card danger${isSelected ? " selected" : ""}`}>
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{ background: "#ef5c6a", border: "1px solid #f8a3ab" }}
+      />
+      <strong>{data?.label || "PR"}</strong>
+      <small>{data?.subtitle || "Failed check run"}</small>
+      <span className="node-chip">CI FAILED</span>
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{ background: "#ef5c6a", border: "1px solid #f8a3ab" }}
+      />
     </div>
   );
 }

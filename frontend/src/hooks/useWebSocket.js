@@ -1,15 +1,33 @@
 import { useEffect } from "react";
-import socket from "../services/socket";
+import socket, { isSocketEnabled } from "../services/socket";
 
-function useWebSocket(onEvent) {
+function useWebSocket(onEvent, eventHandlers = {}) {
   useEffect(() => {
-    if (!onEvent) return undefined;
-    socket.onAny(onEvent);
+    if (!isSocketEnabled) {
+      return undefined;
+    }
+
+    socket.connect();
+
+    if (onEvent) {
+      socket.onAny(onEvent);
+    }
+
+    const handlerEntries = Object.entries(eventHandlers);
+    handlerEntries.forEach(([eventName, handler]) => {
+      socket.on(eventName, handler);
+    });
 
     return () => {
-      socket.offAny(onEvent);
+      if (onEvent) {
+        socket.offAny(onEvent);
+      }
+      handlerEntries.forEach(([eventName, handler]) => {
+        socket.off(eventName, handler);
+      });
+      socket.disconnect();
     };
-  }, [onEvent]);
+  }, [onEvent, eventHandlers]);
 }
 
 export default useWebSocket;

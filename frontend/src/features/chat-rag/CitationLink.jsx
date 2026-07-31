@@ -1,7 +1,7 @@
-function CitationLink({ filePath }) {
+function CitationLink({ filePath, line }) {
   return (
-    <a href="#" style={{ color: "#1e5f74", textDecoration: "none" }}>
-      {filePath}
+    <a href="#" className="citation-link">
+      {filePath}:{line}
     </a>
   );
 }

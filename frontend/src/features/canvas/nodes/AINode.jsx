@@ -1,16 +1,22 @@
+import { Handle, Position } from "reactflow";
+
 function AINode({ data }) {
+  const isSelected = Boolean(data?.selected);
   return (
-    <div
-      style={{
-        border: "1px solid #c17d27",
-        borderRadius: "12px",
-        background: "#fff8ee",
-        padding: "0.6rem 0.75rem",
-        minWidth: 180,
-      }}
-    >
-      <strong>AI Patch</strong>
-      <div>{data?.label || "pending"}</div>
+    <div className={`node-card ai${isSelected ? " selected" : ""}`}>
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{ background: "#5fe3ad", border: "1px solid #9bf4d2" }}
+      />
+      <strong>{data?.label || "AI Patch"}</strong>
+      <small>{data?.subtitle || "Generating fix"}</small>
+      <span className="node-chip success">AI READY</span>
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{ background: "#5fe3ad", border: "1px solid #9bf4d2" }}
+      />
     </div>
   );
 }

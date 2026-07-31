@@ -1,22 +1,64 @@
 import { useMemo } from "react";
-import { useNodesState, useEdgesState } from "reactflow";
+import useAppStore from "../../store/appStore";
 
-const initialNodes = [
-  { id: "n1", type: "commit", position: { x: 20, y: 80 }, data: { label: "PR #141 failed" } },
-  { id: "n2", type: "ai", position: { x: 300, y: 80 }, data: { label: "AI_FIX_STARTED" } },
-];
-
-const initialEdges = [
-  { id: "e1-2", source: "n1", target: "n2", type: "custom" },
-];
+function sanitizeNode(node, index) {
+  const safeX = Number.isFinite(node?.position?.x) ? node.position.x : 180 + index * 220;
+  const safeY = Number.isFinite(node?.position?.y) ? node.position.y : 260;
+  return {
+    ...node,
+    id: node?.id || `node-${index}`,
+    position: { x: safeX, y: safeY },
+    data: node?.data || {},
+  };
+}
 
 function useCanvasState() {
-  const [nodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, onEdgesChange] = useEdgesState(initialEdges);
+  const pullRequests = useAppStore((state) => state.pullRequests);
+  const selectedNodeId = useAppStore((state) => state.selectedNodeId);
 
   return useMemo(
-    () => ({ nodes, edges, onNodesChange, onEdgesChange }),
-    [nodes, edges, onNodesChange, onEdgesChange]
+    () => ({
+      nodes: pullRequests
+        .flatMap((pr, index) => {
+          const baseX = 240 + index * 440;
+          const baseY = 240;
+          return [
+            {
+              id: `node-${pr.id}`,
+              type: "commit",
+              position: { x: baseX, y: baseY },
+              data: {
+                label: `PR #${pr.number}`,
+                subtitle: pr.title,
+                status: pr.status,
+                selected: selectedNodeId === `node-${pr.id}`,
+              },
+            },
+            {
+              id: `node-ai-${pr.id}`,
+              type: "ai",
+              position: { x: baseX + 280, y: baseY },
+              data: {
+                label: `AI Fix PR #${pr.aiFixPr}`,
+                subtitle:
+                  pr.status === "failed"
+                    ? "Proposed patch generated"
+                    : "Patch validated",
+                selected: selectedNodeId === `node-ai-${pr.id}`,
+              },
+            },
+          ];
+        })
+        .map(sanitizeNode),
+      edges: pullRequests.map((pr) => ({
+        id: `edge-${pr.id}`,
+        source: `node-${pr.id}`,
+        target: `node-ai-${pr.id}`,
+        type: "custom",
+        animated: true,
+      })),
+    }),
+    [pullRequests, selectedNodeId]
   );
 }
 
