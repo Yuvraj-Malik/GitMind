@@ -1,6 +1,8 @@
 [build]
-  command = "npm run build --workspace=frontend"
-  publish = "frontend/dist"
+  # This is a monorepo; Netlify should install and build only the frontend.
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
 
 [build.environment]
   NODE_VERSION = "22"
