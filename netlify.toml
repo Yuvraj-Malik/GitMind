@@ -1,0 +1,12 @@
+[build]
+  command = "npm run build --workspace=frontend"
+  publish = "frontend/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Serve the React entry point for direct visits to client-side routes.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

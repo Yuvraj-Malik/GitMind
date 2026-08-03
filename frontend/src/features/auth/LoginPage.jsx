@@ -19,7 +19,8 @@ function LoginPage() {
   }, [searchParams, navigate, setToken, token]);
 
   const handleLogin = () => {
-    window.location.href = "http://localhost:4000/auth/github";
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
+    window.location.href = `${apiUrl.replace(/\/$/, "")}/auth/github`;
   };
 
   const handleDevBypass = () => {

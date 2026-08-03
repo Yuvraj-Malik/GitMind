@@ -9,7 +9,7 @@ const GITHUB_USER_URL = "https://api.github.com/user";
 
 // Redirect to GitHub for login
 function redirectGithub(req, res) {
-  const redirectUri = `http://localhost:${env.port}/auth/github/callback`;
+  const redirectUri = `${env.backendUrl.replace(/\/$/, "")}/auth/github/callback`;
   const githubAuthUrl = `${GITHUB_OAUTH_URL}?client_id=${process.env.GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}&scope=read:user user:email`;
   res.redirect(githubAuthUrl);
 }
@@ -69,10 +69,10 @@ async function handleGithubCallback(req, res) {
     );
 
     // 5. Redirect back to frontend with token
-    res.redirect(`http://localhost:5173/login?token=${token}`);
+    res.redirect(`${env.frontendUrl.replace(/\/$/, "")}/login?token=${encodeURIComponent(token)}`);
   } catch (error) {
     console.error("GitHub Auth Error:", error.message);
-    res.redirect(`http://localhost:5173/login?error=auth_failed`);
+    res.redirect(`${env.frontendUrl.replace(/\/$/, "")}/login?error=auth_failed`);
   }
 }
 
