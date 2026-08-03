@@ -7,6 +7,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import useAppStore from "../../store/appStore";
+import { getStatusTone } from "../../utils/statusAppearance";
 
 function Topbar() {
   const searchQuery = useAppStore((state) => state.searchQuery);
@@ -52,7 +53,7 @@ function Topbar() {
         </button>
       </div>
 
-      <div className="status-pill">
+      <div className={`status-pill ${getStatusTone(aiStatus)}`}>
         <ShieldCheck size={14} style={{ marginRight: 6, verticalAlign: "middle" }} />
         Git-Mind AI: {aiStatus}
       </div>

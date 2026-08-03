@@ -46,7 +46,7 @@ function Sidebar() {
 
       <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "12px" }}>
         <button 
-          className="nav-dot" 
+          className={`nav-dot theme-toggle ${theme}`} 
           onClick={toggleTheme} 
           title="Toggle Theme"
           style={{ cursor: "pointer", border: "none" }}

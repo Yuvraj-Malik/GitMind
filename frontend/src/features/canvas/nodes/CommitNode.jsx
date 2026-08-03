@@ -1,21 +1,23 @@
 import { Handle, Position } from "reactflow";
+import { formatStatus, getStatusTone } from "../../../utils/statusAppearance";
 
 function CommitNode({ data }) {
   const isSelected = Boolean(data?.selected);
+  const tone = getStatusTone(data?.status);
   return (
-    <div className={`node-card danger${isSelected ? " selected" : ""}`}>
+    <div className={`node-card ${tone}${isSelected ? " selected" : ""}`}>
       <Handle
         type="target"
         position={Position.Left}
-        style={{ background: "#ef5c6a", border: "1px solid #f8a3ab" }}
+        className={`node-handle ${tone}`}
       />
       <strong>{data?.label || "PR"}</strong>
       <small>{data?.subtitle || "Failed check run"}</small>
-      <span className="node-chip">CI FAILED</span>
+      <span className={`node-chip ${tone}`}>{formatStatus(data?.status)}</span>
       <Handle
         type="source"
         position={Position.Right}
-        style={{ background: "#ef5c6a", border: "1px solid #f8a3ab" }}
+        className={`node-handle ${tone}`}
       />
     </div>
   );
