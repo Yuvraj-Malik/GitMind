@@ -5,16 +5,24 @@ import {
   GitBranch,
   Home,
   List,
+  LogOut,
   Settings,
   Moon,
   Sun,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import useAppStore from "../../store/appStore";
 
 function Sidebar() {
   const theme = useAppStore((state) => state.theme);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
+  const logout = useAppStore((state) => state.logout);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
 
   const navItems = [
     { icon: Home, path: "/", title: "Dashboard" },
@@ -61,6 +69,16 @@ function Sidebar() {
         >
           <Settings size={17} />
         </NavLink>
+
+        <button
+          className="nav-dot"
+          onClick={handleLogout}
+          title="Log out"
+          aria-label="Log out"
+          style={{ cursor: "pointer", border: "none" }}
+        >
+          <LogOut size={17} />
+        </button>
       </div>
     </aside>
   );

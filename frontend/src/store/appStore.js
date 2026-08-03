@@ -82,7 +82,24 @@ const useAppStore = create((set, get) => ({
 
   logout: () => {
     localStorage.removeItem("gitmind_token");
-    set({ token: null, user: null });
+    set({
+      token: null,
+      user: null,
+      repositories: [],
+      activeRepositoryId: null,
+      pullRequests: [],
+      activePrId: null,
+      logs: [],
+      selectedLogId: null,
+      activityFeed: [],
+      chatMessages: [],
+      searchQuery: "",
+      aiStatus: "Idle",
+      notificationCount: 0,
+      selectedNodeId: null,
+      dashboardLoading: false,
+      dashboardError: null,
+    });
   },
 
   setSearchQuery: (searchQuery) => set({ searchQuery }),

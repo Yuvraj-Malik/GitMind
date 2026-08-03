@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Sidebar from "./features/sidebar/Sidebar";
 import DashboardPage from "./features/dashboard/DashboardPage";
 import LoginPage from "./features/auth/LoginPage";
@@ -6,9 +6,12 @@ import SettingsPage from "./features/settings/SettingsPage";
 import { ActivityPage, AiAgentsPage, BranchesPage, PullRequestsPage, RepositoriesPage } from "./features/workspace/WorkspacePages";
 
 function App() {
+  const location = useLocation();
+  const isLoginPage = location.pathname === "/login";
+
   return (
-    <div className="app-page">
-      <Sidebar />
+    <div className={isLoginPage ? "auth-page" : "app-page"}>
+      {!isLoginPage && <Sidebar />}
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/login" element={<LoginPage />} />

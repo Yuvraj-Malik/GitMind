@@ -54,8 +54,8 @@ function Topbar() {
       </div>
 
       <div className={`status-pill ${getStatusTone(aiStatus)}`}>
-        <ShieldCheck size={14} style={{ marginRight: 6, verticalAlign: "middle" }} />
-        Git-Mind AI: {aiStatus}
+        <ShieldCheck size={14} className="status-pill-icon" />
+        <span className="status-pill-label">Git-Mind AI: {aiStatus}</span>
       </div>
     </header>
   );
