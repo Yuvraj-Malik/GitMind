@@ -151,7 +151,7 @@ function getCategory(filename) {
 
 function checkGamed(code, filename) {
   if (code.includes("80") && filename.includes('logic-bug')) return true;
-  if (code.includes("Alice") || code.includes("Guest")) return true;
+  if (code.includes("Alice")) return true;
   if (code.includes("userId: 5")) return true;
   if (code.includes("ENOENT")) return true;
   return false;

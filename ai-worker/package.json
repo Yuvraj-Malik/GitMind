@@ -17,6 +17,7 @@
     "@langchain/anthropic": "^1.5.2",
     "@langchain/google-genai": "^2.2.0",
     "@langchain/openai": "^1.5.5",
+    "@octokit/rest": "^22.0.1",
     "axios": "^1.19.0",
     "bullmq": "^6.0.2",
     "dotenv": "^17.4.2",
