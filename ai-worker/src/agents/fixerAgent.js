@@ -60,6 +60,13 @@ async function runFixerAgent(payload) {
 
       // Try applying and verifying the patch
       result = await createFixBranchAndCommit({ prNumber, patchProposal });
+      
+      // If we reach here and it was successful, we only return ok: true if the PR was actually created
+      if (!result.prUrl) {
+         // Should not happen normally because of the PR_CONFIG_MISSING throw, but just in case
+         return { ok: false, error: 'PR creation did not return a URL', failed_at: 'pr_creation' };
+      }
+      
       return { 
         ok: true, 
         prNumber, 
@@ -73,19 +80,25 @@ async function runFixerAgent(payload) {
       if (err.message.includes('Verification failed')) {
          // Feed this new failure into next attempt
          currentErrorContext = err.message.substring(0, 2000);
+         await new Promise(r => setTimeout(r, 5000));
       } else {
-         // For other errors, keep original error context but we still retry
+         // Non-verification errors should short-circuit the loop (e.g. config missing, auth failed)
+         break;
       }
-      await new Promise(r => setTimeout(r, 5000));
     }
   }
 
-  // If we reach here, 3 attempts failed
+  // If we reach here, either 3 attempts failed or we broke out early
   let failedAt = 'verification';
-  if (finalError && finalError.includes('Push or PR creation failed')) failedAt = 'pr_creation';
-  else if (!patch) failedAt = 'llm_generation';
+  if (finalError) {
+    if (finalError.includes('PR_CONFIG_MISSING')) failedAt = 'pr_config_missing';
+    else if (finalError.includes('Push or PR creation failed')) failedAt = 'pr_creation';
+    else if (finalError.includes('SAFETY GUARD')) failedAt = 'safety_guard';
+  } else if (!patch) {
+    failedAt = 'llm_generation';
+  }
 
-  return { ok: false, error: `Agent failed after 3 attempts: ${finalError}`, failed_at: failedAt };
+  return { ok: false, error: `Agent failed: ${finalError}`, failed_at: failedAt };
 }
 
 module.exports = { runFixerAgent };
