@@ -22,6 +22,7 @@
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.0",
+    "shared": "*",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

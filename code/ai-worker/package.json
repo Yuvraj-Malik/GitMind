@@ -23,7 +23,9 @@
     "dotenv": "^17.4.2",
     "ioredis": "^5.11.1",
     "langchain": "^1.5.4",
+    "mongoose": "^9.9.0",
     "openai": "^7.2.0",
+    "shared": "*",
     "simple-git": "^3.36.0",
     "tree-sitter": "^0.25.1"
   },

@@ -6,6 +6,12 @@ const AILogSchema = new mongoose.Schema(
     action: String,
     reasoning: String,
     status: String,
+    repoName: String,
+    branch: String,
+    prUrl: String,
+    filePath: String,
+    failedAt: String,
+    attempt: Number,
   },
   { timestamps: true }
 );

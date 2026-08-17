@@ -1,6 +1,6 @@
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const { User } = require("shared");
 const env = require("../config/env");
 
 const GITHUB_OAUTH_URL = "https://github.com/login/oauth/authorize";

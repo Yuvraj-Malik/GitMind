@@ -1,6 +1,4 @@
-const Repository = require("../models/Repository");
-const PullRequest = require("../models/PullRequest");
-const AILog = require("../models/AILog");
+const { Repository, PullRequest, AILog } = require("shared");
 
 async function listRepositories() {
   return Repository.find().lean();
