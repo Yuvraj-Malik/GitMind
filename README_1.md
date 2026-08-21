@@ -87,7 +87,7 @@ npm run dev -w ai-worker
 - **Visual UI** — the React Flow canvas, components, node rendering
 - **Core Backend** — Express, MongoDB, webhooks, sockets
 - **AI Fixer** — the BullMQ worker + LangChain fixer agent + the retry-limit logic
-- **RAG Engine (me)** — Tree-Sitter chunking, embeddings, vector search, and the chat UI for "Ask Git-Mind"
+- **RAG Engine** — Tree-Sitter chunking, embeddings, vector search, and the chat UI for "Ask Git-Mind"
 
 ---
 
