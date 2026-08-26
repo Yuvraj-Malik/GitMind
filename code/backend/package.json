@@ -2,30 +2,17 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "src/server.js",
+  "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
-    "test": "echo \"No tests configured yet\""
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@octokit/rest": "^22.0.1",
-    "axios": "^1.19.0",
-    "bullmq": "^6.0.2",
-    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "ioredis": "^5.11.1",
-    "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.9.0",
-    "shared": "*",
-    "socket.io": "^4.8.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
+    "mongoose": "^9.9.3"
   }
 }
