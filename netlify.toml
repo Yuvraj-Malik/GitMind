@@ -1,12 +1,11 @@
 [build]
-  base = "frontend"
+  base = "code/frontend"
   command = "npm run build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "22"
 
-# Serve the React entry point for direct visits to client-side routes.
 [[redirects]]
   from = "/*"
   to = "/index.html"
