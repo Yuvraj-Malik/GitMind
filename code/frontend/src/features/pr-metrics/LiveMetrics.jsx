@@ -15,14 +15,11 @@ function LiveMetrics() {
       <h3 style={{ margin: 0, fontSize: "0.88rem" }}>Live Build Metrics</h3>
       <div className="metrics-grid">
         <MetricCard label="PR" value={pr.number ? `#${pr.number}` : "N/A"} />
-        <MetricCard label="Build Time" value={pr.buildTime || "--"} />
-        <MetricCard label="Author" value={pr.author || "Unknown"} />
-        <MetricCard
-          label="Tests"
-          value={pr.testsTotal ? `${pr.testsPassed || 0}/${pr.testsTotal}` : "N/A"}
-        />
-        <MetricCard label="Security" value={pr.securityScan || "N/A"} />
-        <MetricCard label="Fix PR" value={pr.aiFixPr ? `#${pr.aiFixPr}` : "--"} />
+        <MetricCard label="Build Time" value={"N/A"} />
+        <MetricCard label="Author" value={"N/A"} />
+        <MetricCard label="Tests" value={"N/A"} />
+        <MetricCard label="Security" value={"N/A"} />
+        <MetricCard label="Fix PR" value={"N/A"} />
       </div>
     </div>
   );

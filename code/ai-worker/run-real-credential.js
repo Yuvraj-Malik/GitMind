@@ -1,4 +1,4 @@
-const { runFixerAgent } = require('./src/agents/fixerAgent');
+const { runFixerAgentCore } = require('./src/agents/fixerAgent');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const fs = require('fs');
@@ -10,7 +10,7 @@ async function testE2E() {
   async function runBug() {
     console.log(`\n--- Running E2E for all files in sandbox ---`);
     
-    const bugFiles = ['02-off-by-one.js'];
+    const bugFiles = ['06-misleading-comment.js'];
     const files = [];
     
     for (const file of bugFiles) {
@@ -28,18 +28,17 @@ async function testE2E() {
     }
 
     const payload = {
-      prNumber: 5,
+      prNumber: 6,
       errorLog: initialError,
       files: files
     };
 
-    const result = await runFixerAgent(payload);
+    const result = await runFixerAgentCore(payload);
     console.log("=== RAW JSON RESULT ===");
     console.log(JSON.stringify(result, null, 2));
     process.exit(0);
   }
 
-  // Cross-file bug
   await runBug();
 }
 

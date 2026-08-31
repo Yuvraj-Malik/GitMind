@@ -3,6 +3,7 @@ import {
   enqueueChatQuestion,
   fetchRepositories,
   fetchRepositoryCommits,
+  fetchAiLogs,
 } from "../services/dashboardService";
 
 function nowTime() {
@@ -120,6 +121,18 @@ const useAppStore = create((set, get) => ({
           : [];
       }
 
+      const rawLogs = await fetchAiLogs();
+      const logs = Array.isArray(rawLogs)
+        ? rawLogs.map((log) => ({
+            id: String(log._id),
+            prId: log.prUrl || log.jobId || "unknown", // DB doesn't store exact PR ID, fallback to URL
+            source: log.filePath || log.action || "Unknown File",
+            stack: log.reasoning || (log.status === "failed" ? `Failed at ${log.failedAt}` : "Success"),
+            timestamp: new Date(log.createdAt).toLocaleString(),
+            severity: log.status === "failed" ? "error" : "info",
+          }))
+        : [];
+
       const activePrId = pullRequests[0]?.id || null;
 
       set({
@@ -127,6 +140,8 @@ const useAppStore = create((set, get) => ({
         activeRepositoryId,
         pullRequests,
         activePrId,
+        logs,
+        selectedLogId: logs[0]?.id || null,
         selectedNodeId: activePrId ? `node-${activePrId}` : null,
         activityFeed: [
           {

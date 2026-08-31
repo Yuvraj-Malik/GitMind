@@ -49,7 +49,9 @@ Files:
   
   const fileContentString = files.map(f => `### ${f.filepath}\n\`\`\`javascript\n${f.content}\n\`\`\``).join('\n\n');
 
+  let actualAttempt = 1;
   for (let attempt = 1; attempt <= 3; attempt++) {
+    actualAttempt = attempt;
     try {
       const chain = prompt.pipe(llm);
       const response = await chain.invoke({
@@ -128,7 +130,7 @@ Files:
     failedAt = 'llm_generation';
   }
 
-  return { ok: false, error: `Agent failed: ${finalError}`, failed_at: failedAt, attempt: 3 };
+  return { ok: false, error: `Agent failed: ${finalError}`, failed_at: failedAt, attempt: actualAttempt };
 }
 
 const { writeAILog } = require('../services/db');
@@ -154,4 +156,4 @@ async function runFixerAgent(payload) {
   return result;
 }
 
-module.exports = { runFixerAgent };
+module.exports = { runFixerAgent, runFixerAgentCore };
