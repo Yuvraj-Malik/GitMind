@@ -76,7 +76,67 @@ async function handleGithubCallback(req, res) {
   }
 }
 
+// Handle Firebase GitHub authentication payload from client
+async function handleFirebaseGithubAuth(req, res) {
+  const { firebaseUid, githubId, username, avatarUrl, accessToken } = req.body;
+
+  if (!githubId && !firebaseUid) {
+    return res.status(400).json({ error: "Missing required user identification (githubId or firebaseUid)" });
+  }
+
+  try {
+    let query = {};
+    if (githubId) {
+      query = { githubId: String(githubId) };
+    } else {
+      query = { firebaseUid: String(firebaseUid) };
+    }
+
+    let user = await User.findOne(query);
+
+    if (!user) {
+      user = new User({
+        firebaseUid: firebaseUid || undefined,
+        githubId: githubId ? String(githubId) : `fb-${firebaseUid}`,
+        username: username || `user-${Date.now().toString().slice(-4)}`,
+        avatarUrl: avatarUrl || "",
+        accessToken: accessToken || "",
+      });
+    } else {
+      if (firebaseUid) user.firebaseUid = firebaseUid;
+      if (username) user.username = username;
+      if (avatarUrl) user.avatarUrl = avatarUrl;
+      if (accessToken) user.accessToken = accessToken;
+    }
+
+    await user.save();
+
+    const jwtSecret = process.env.JWT_SECRET || "default_super_secret_key";
+    const token = jwt.sign(
+      { id: user._id, username: user.username, avatarUrl: user.avatarUrl, firebaseUid: user.firebaseUid },
+      jwtSecret,
+      { expiresIn: "7d" }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+        firebaseUid: user.firebaseUid,
+      },
+    });
+  } catch (error) {
+    console.error("Firebase GitHub Auth Error:", error);
+    res.status(500).json({ error: "Authentication failed", message: error.message });
+  }
+}
+
 module.exports = {
   redirectGithub,
   handleGithubCallback,
+  handleFirebaseGithubAuth,
 };
+

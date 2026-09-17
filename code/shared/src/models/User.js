@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
+  firebaseUid: { type: String },
   githubId: { type: String, required: true, unique: true },
   username: { type: String, required: true },
   avatarUrl: { type: String },

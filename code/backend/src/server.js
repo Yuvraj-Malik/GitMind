@@ -10,7 +10,7 @@ const { verifyGithubSignature } = require("./webhooks/githubReceiver");
 const { routeGithubEvent } = require("./webhooks/eventRouter");
 const { getRepos, getRepoCommits, triggerFix } = require("./controllers/repoController");
 const { postChat } = require("./controllers/chatController");
-const { redirectGithub, handleGithubCallback } = require("./controllers/authController");
+const { redirectGithub, handleGithubCallback, handleFirebaseGithubAuth } = require("./controllers/authController");
 const { getAiLogs, getActivity, getBranches, getPullRequests } = require("./controllers/workspaceController");
 
 const app = express();
@@ -30,6 +30,7 @@ app.post("/webhooks/github", verifyGithubSignature, routeGithubEvent);
 
 app.get("/auth/github", redirectGithub);
 app.get("/auth/github/callback", handleGithubCallback);
+app.post("/auth/firebase-github", handleFirebaseGithubAuth);
 
 app.use((error, req, res, next) => {
   console.error("[backend] request failed", error);

@@ -1,5 +1,7 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { signInWithPopup, GithubAuthProvider } from "firebase/auth";
+import { auth, githubProvider } from "../../config/firebase";
 import {
   ArrowRight,
   Bot,
@@ -31,6 +33,8 @@ function LoginPage() {
   const navigate = useNavigate();
   const setToken = useAppStore((state) => state.setToken);
   const token = useAppStore((state) => state.token);
+  const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
     const tokenFromUrl = searchParams.get("token");
@@ -42,7 +46,44 @@ function LoginPage() {
     }
   }, [searchParams, navigate, setToken, token]);
 
-  const handleLogin = () => {
+  const handleFirebaseLogin = async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const result = await signInWithPopup(auth, githubProvider);
+      const credential = GithubAuthProvider.credentialFromResult(result);
+      const accessToken = credential?.accessToken;
+      const user = result.user;
+
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
+      const response = await fetch(`${apiUrl.replace(/\/$/, "")}/auth/firebase-github`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firebaseUid: user.uid,
+          githubId: user.providerData?.[0]?.uid || user.uid,
+          username: user.displayName || user.email?.split("@")[0] || "GitHub User",
+          avatarUrl: user.photoURL || "",
+          accessToken,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.token) {
+        setToken(data.token);
+        navigate("/");
+      } else {
+        throw new Error(data.message || "Failed to authenticate with backend");
+      }
+    } catch (error) {
+      console.error("Firebase Login Error:", error);
+      setAuthError(error.message || "Firebase GitHub login failed. Please check configuration.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDirectOAuthLogin = () => {
     const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
     window.location.href = `${apiUrl.replace(/\/$/, "")}/auth/github`;
   };
@@ -74,12 +115,26 @@ function LoginPage() {
           </p>
 
           <div className="landing-actions">
-            <button className="github-action" onClick={handleLogin}>
+            <button className="github-action" onClick={handleFirebaseLogin} disabled={loading}>
               <GitHubMark />
-              Continue with GitHub
+              {loading ? "Connecting to Firebase..." : "Sign in with GitHub (Firebase)"}
               <ArrowRight size={18} className="action-arrow" />
             </button>
-            <p>New here? Your GitHub account is all you need.</p>
+            
+            <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "8px" }}>
+              <small style={{ color: "#94a3b8" }}>Or use</small>
+              <button 
+                onClick={handleDirectOAuthLogin} 
+                style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", textDecoration: "underline", fontSize: "0.85rem", padding: 0 }}
+              >
+                Direct GitHub OAuth
+              </button>
+            </div>
+
+            {authError && (
+              <p style={{ color: "#f87171", fontSize: "0.85rem", marginTop: "8px" }}>{authError}</p>
+            )}
+            <p style={{ marginTop: "12px" }}>New here? Your GitHub account is all you need.</p>
           </div>
 
           <ul className="landing-highlights">
