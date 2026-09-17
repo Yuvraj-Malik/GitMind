@@ -11,26 +11,12 @@ const edgeTypes = { custom: CustomEdge };
 
 function GraphCanvas() {
   const { nodes, edges } = useCanvasState();
-  const repositories = useAppStore((state) => state.repositories);
-  const activeRepositoryId = useAppStore((state) => state.activeRepositoryId);
   const selectNode = useAppStore((state) => state.selectNode);
 
-  const activeRepository = repositories.find((repo) => repo.id === activeRepositoryId);
-
   return (
-    <div className="flow-canvas">
-      <section className="repo-tree">
-        <h4>Repository tree</h4>
-        <ul>
-          <li>{activeRepository?.name || "No repository loaded"}</li>
-          {(activeRepository?.files || []).map((file) => (
-            <li key={file}>{file}</li>
-          ))}
-        </ul>
-      </section>
-
+    <div className="flow-canvas" style={{ width: "100%", height: "100%", position: "relative" }}>
       {nodes.length === 0 ? (
-        <div className="overlay-note">No graph data yet. Backend commits will render here.</div>
+        <div className="overlay-note">No graph data yet. Backend pull requests will render here.</div>
       ) : null}
 
       <ReactFlow
@@ -40,7 +26,7 @@ function GraphCanvas() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodeClick={(_, node) => selectNode(node.id)}
-        fitViewOptions={{ padding: 0.25 }}
+        fitViewOptions={{ padding: 0.3 }}
       >
         <Background color="rgba(117, 138, 176, 0.2)" gap={24} />
         <Controls />

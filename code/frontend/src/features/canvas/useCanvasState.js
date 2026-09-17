@@ -1,73 +1,65 @@
 import { useMemo } from "react";
 import useAppStore from "../../store/appStore";
 
-function sanitizeNode(node, index) {
-  const safeX = Number.isFinite(node?.position?.x) ? node.position.x : 180 + index * 220;
-  const safeY = Number.isFinite(node?.position?.y) ? node.position.y : 260;
-  return {
-    ...node,
-    id: node?.id || `node-${index}`,
-    position: { x: safeX, y: safeY },
-    data: node?.data || {},
-  };
-}
-
 function useCanvasState() {
   const pullRequests = useAppStore((state) => state.pullRequests);
+  const commits = useAppStore((state) => state.commits);
   const selectedNodeId = useAppStore((state) => state.selectedNodeId);
 
-  return useMemo(
-    () => ({
-      nodes: pullRequests
-        .flatMap((pr, index) => {
-          const baseX = 240 + index * 440;
-          const baseY = 240;
-          
-          const nodesList = [
-            {
-              id: `node-${pr.id}`,
-              type: "commit",
-              position: { x: baseX, y: baseY },
-              data: {
-                label: `PR #${pr.number}`,
-                subtitle: pr.title,
-                status: pr.status,
-                selected: selectedNodeId === `node-${pr.id}`,
-              },
-            }
-          ];
+  return useMemo(() => {
+    const nodes = [];
+    const edges = [];
 
-          if (pr.aiFixPr) {
-            nodesList.push({
-              id: `node-ai-${pr.id}`,
-              type: "ai",
-              position: { x: baseX + 280, y: baseY },
-              data: {
-                label: `AI Fix PR #${pr.aiFixPr}`,
-                subtitle:
-                  pr.status === "failed"
-                    ? "Proposed patch generated"
-                    : "Patch validated",
-                selected: selectedNodeId === `node-ai-${pr.id}`,
-              },
-            });
-          }
-          
-          return nodesList;
-        })
-        .map(sanitizeNode),
-      edges: pullRequests
-        .filter(pr => pr.aiFixPr)
-        .map((pr) => ({
+    // Lay out Pull Requests horizontally with generous spacing
+    pullRequests.forEach((pr, index) => {
+      const prNodeId = `node-pr-${pr.id}`;
+      const baseX = 80 + index * 420;
+      const baseY = 80;
+
+      nodes.push({
+        id: prNodeId,
+        type: "commit",
+        position: { x: baseX, y: baseY },
+        data: {
+          label: `PR #${pr.number}`,
+          subtitle: pr.title || "Pull Request",
+          status: pr.status || "open",
+          branch: pr.branch || "main",
+          author: pr.author || "git-mind",
+          selected: selectedNodeId === prNodeId,
+        },
+      });
+
+      // If PR has an AI Fix or is failed, connect an AI fix node
+      if (pr.status === "failed" || pr.aiFixPr) {
+        const aiNodeId = `node-ai-${pr.id}`;
+        nodes.push({
+          id: aiNodeId,
+          type: "ai",
+          position: { x: baseX + 230, y: baseY },
+          data: {
+            label: `AI Fix for PR #${pr.number}`,
+            subtitle:
+              pr.status === "failed"
+                ? "Proposed patch generated"
+                : "Patch validated & ready",
+            status: pr.status === "failed" ? "failed" : "passed",
+            selected: selectedNodeId === aiNodeId,
+          },
+        });
+
+        edges.push({
           id: `edge-${pr.id}`,
-          source: `node-${pr.id}`,
-          target: `node-ai-${pr.id}`,
+          source: prNodeId,
+          target: aiNodeId,
           type: "custom",
           animated: true,
-        })),
-    }),
-    [pullRequests, selectedNodeId]
-  );
+        });
+      }
+    });
+
+    return { nodes, edges };
+  }, [pullRequests, commits, selectedNodeId]);
 }
 
 export default useCanvasState;
