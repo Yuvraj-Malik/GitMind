@@ -7,6 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "npm run dev -w frontend",
     "dev:backend": "npm run dev -w backend",
+    "start:backend": "npm start -w backend",
     "dev:worker": "npm run dev -w ai-worker",
     "install:all": "npm install --workspaces"
   },

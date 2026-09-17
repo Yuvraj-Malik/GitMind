@@ -7,7 +7,7 @@ function verifyGithubSignature(req, res, next) {
   }
 
   const signature = req.get("x-hub-signature-256") || "";
-  const payload = JSON.stringify(req.body);
+  const payload = req.rawBody || JSON.stringify(req.body);
   const expected =
     "sha256=" +
     crypto
@@ -15,7 +15,10 @@ function verifyGithubSignature(req, res, next) {
       .update(payload)
       .digest("hex");
 
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+  const sigBuffer = Buffer.from(signature);
+  const expBuffer = Buffer.from(expected);
+
+  if (sigBuffer.length !== expBuffer.length || !crypto.timingSafeEqual(sigBuffer, expBuffer)) {
     return res.status(401).json({ error: "Invalid GitHub signature" });
   }
 

@@ -6,4 +6,12 @@ const redisConnection = new IORedis(env.redisUrl, {
   lazyConnect: true,
 });
 
+redisConnection.on("error", (err) => {
+  console.warn("[redis] connection warning:", err.message);
+});
+
+redisConnection.on("connect", () => {
+  console.log("[redis] connected successfully");
+});
+
 module.exports = { redisConnection };

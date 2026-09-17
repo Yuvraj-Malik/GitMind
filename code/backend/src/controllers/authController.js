@@ -9,8 +9,12 @@ const GITHUB_USER_URL = "https://api.github.com/user";
 
 // Redirect to GitHub for login
 function redirectGithub(req, res) {
+  const clientId = env.githubClientId || process.env.GITHUB_CLIENT_ID;
+  if (!clientId) {
+    return res.status(500).send("GitHub Client ID is not configured on the server.");
+  }
   const redirectUri = `${env.backendUrl.replace(/\/$/, "")}/auth/github/callback`;
-  const githubAuthUrl = `${GITHUB_OAUTH_URL}?client_id=${process.env.GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}&scope=read:user user:email`;
+  const githubAuthUrl = `${GITHUB_OAUTH_URL}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user user:email`;
   res.redirect(githubAuthUrl);
 }
 
@@ -26,8 +30,8 @@ async function handleGithubCallback(req, res) {
     const tokenResponse = await axios.post(
       GITHUB_TOKEN_URL,
       {
-        client_id: process.env.GITHUB_CLIENT_ID,
-        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        client_id: env.githubClientId || process.env.GITHUB_CLIENT_ID,
+        client_secret: env.githubClientSecret || process.env.GITHUB_CLIENT_SECRET,
         code,
       },
       { headers: { Accept: "application/json" } }
@@ -35,7 +39,7 @@ async function handleGithubCallback(req, res) {
 
     const accessToken = tokenResponse.data.access_token;
     if (!accessToken) {
-      throw new Error("Failed to get access token");
+      throw new Error(tokenResponse.data.error_description || "Failed to get access token");
     }
 
     // 2. Fetch user profile
@@ -61,7 +65,7 @@ async function handleGithubCallback(req, res) {
     await user.save();
 
     // 4. Issue JWT
-    const jwtSecret = process.env.JWT_SECRET || "default_super_secret_key";
+    const jwtSecret = env.jwtSecret || "default_super_secret_key";
     const token = jwt.sign(
       { id: user._id, username: user.username, avatarUrl: user.avatarUrl },
       jwtSecret,
@@ -111,7 +115,7 @@ async function handleFirebaseGithubAuth(req, res) {
 
     await user.save();
 
-    const jwtSecret = process.env.JWT_SECRET || "default_super_secret_key";
+    const jwtSecret = env.jwtSecret || "default_super_secret_key";
     const token = jwt.sign(
       { id: user._id, username: user.username, avatarUrl: user.avatarUrl, firebaseUid: user.firebaseUid },
       jwtSecret,

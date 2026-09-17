@@ -17,7 +17,10 @@ const { execSync } = require("child_process");
 
 async function triggerFix(req, res) {
   try {
-    const { filePath, prNumber } = req.body;
+    const { filePath, prNumber } = req.body || {};
+    if (!filePath) {
+      return res.status(400).json({ error: "Missing filePath in request body" });
+    }
     const bugsDir = process.env.TEST_REPO_PATH
       ? path.join(process.env.TEST_REPO_PATH, "bugs")
       : path.resolve(__dirname, "../../../ai-worker/scripts/test-repo/bugs");
