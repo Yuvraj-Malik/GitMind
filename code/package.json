@@ -8,6 +8,7 @@
     "dev": "npm run dev -w frontend",
     "dev:backend": "npm run dev -w backend",
     "start:backend": "npm start -w backend",
+    "seed": "node seed.js",
     "dev:worker": "npm run dev -w ai-worker",
     "install:all": "npm install --workspaces"
   },
