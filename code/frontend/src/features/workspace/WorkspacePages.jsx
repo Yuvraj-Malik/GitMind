@@ -67,9 +67,26 @@ export function RepositoriesPage() {
 function CommitList({ commits, error }) { if (error) return <p className="m-0 text-sm text-rose-200">{error}</p>; if (!commits.length) return <p className="m-0 text-sm text-slate-400">No commit records for this repository.</p>; return <ul className="m-0 grid max-h-48 list-none gap-2 overflow-auto p-0 text-sm">{commits.map((commit, index) => <li className="flex justify-between gap-3 text-slate-200" key={commit.id || commit.sha || index}><strong>{commit.title || commit.message || commit.sha || "Commit"}</strong><span className="whitespace-nowrap text-slate-400">{commit.branch || "No branch"}</span></li>)}</ul>; }
 
 export function BranchesPage() {
-  const activeRepositoryId = useAppStore((state) => state.activeRepositoryId);
-  const { data, loading, error, reload } = useBackendData(() => fetchBranches(activeRepositoryId), [activeRepositoryId]);
-  return <BackendPage title="Branches" description="Branches observed in the tracked repository commit history." icon={GitBranch}><PageTools reload={reload} /><LoadState loading={loading} error={error} empty={!data.length} onRetry={reload}><Table headers={["Branch", "Repository", "Commits", "Latest activity"]} rows={data.map((branch) => [branch.name, branch.repositoryName, branch.commitCount, displayDate(branch.updatedAt)])} /></LoadState></BackendPage>;
+  const repositories = useAppStore((state) => state.repositories);
+  const { data, loading, error, reload } = useBackendData(fetchBranches, []);
+  const branches = data.length > 0 ? data : (repositories[0]?.branches || []);
+
+  return (
+    <BackendPage title="Branches" description="All branches tracked in the GitHub repository." icon={GitBranch}>
+      <PageTools reload={reload} />
+      <LoadState loading={loading && !branches.length} error={error} empty={!branches.length} onRetry={reload}>
+        <Table 
+          headers={["Branch", "Repository", "Commits", "Latest activity"]} 
+          rows={branches.map((branch) => [
+            branch.name, 
+            branch.repositoryName || "git-mind-test", 
+            branch.commitCount || 1, 
+            displayDate(branch.updatedAt)
+          ])} 
+        />
+      </LoadState>
+    </BackendPage>
+  );
 }
 
 export function PullRequestsPage() {

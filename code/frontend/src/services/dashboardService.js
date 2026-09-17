@@ -30,6 +30,11 @@ export async function fetchAiLogs() {
   return response.data;
 }
 
+export async function triggerSyncGithub() {
+  const response = await apiClient.post("/sync");
+  return response.data;
+}
+
 export async function enqueueChatQuestion({ question, repositoryId }) {
   const response = await apiClient.post("/chat", {
     question,

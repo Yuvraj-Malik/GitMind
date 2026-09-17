@@ -10,27 +10,30 @@ function useCanvasState() {
     const nodes = [];
     const edges = [];
 
-    // Lay out Pull Requests horizontally with generous spacing
-    pullRequests.forEach((pr, index) => {
+    // Separate open PRs (active focus) and closed/merged PRs
+    const openPrs = pullRequests.filter((pr) => pr.status === "open");
+    const otherPrs = pullRequests.filter((pr) => pr.status !== "open");
+
+    // Layout open PRs along top row
+    openPrs.forEach((pr, index) => {
       const prNodeId = `node-pr-${pr.id}`;
-      const baseX = 80 + index * 420;
-      const baseY = 80;
+      const baseX = 60 + index * 460;
+      const baseY = 60;
 
       nodes.push({
         id: prNodeId,
         type: "commit",
         position: { x: baseX, y: baseY },
         data: {
-          label: `PR #${pr.number}`,
+          label: `PR #${pr.number} (Open)`,
           subtitle: pr.title || "Pull Request",
           status: pr.status || "open",
           branch: pr.branch || "main",
-          author: pr.author || "git-mind",
+          author: pr.author || "Yuvraj-Malik",
           selected: selectedNodeId === prNodeId,
         },
       });
 
-      // If PR has an AI Fix or is failed, connect an AI fix node
       if (pr.status === "failed" || pr.aiFixPr) {
         const aiNodeId = `node-ai-${pr.id}`;
         nodes.push({
@@ -56,6 +59,31 @@ function useCanvasState() {
           animated: true,
         });
       }
+    });
+
+    // Layout closed/merged PRs in a clean grid below
+    const cols = 4;
+    const startY = openPrs.length > 0 ? 220 : 60;
+    otherPrs.forEach((pr, index) => {
+      const prNodeId = `node-pr-${pr.id}`;
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const baseX = 60 + col * 260;
+      const baseY = startY + row * 140;
+
+      nodes.push({
+        id: prNodeId,
+        type: "commit",
+        position: { x: baseX, y: baseY },
+        data: {
+          label: `PR #${pr.number}`,
+          subtitle: pr.title || "Pull Request",
+          status: pr.status || "closed",
+          branch: pr.branch || "main",
+          author: pr.author || "Yuvraj-Malik",
+          selected: selectedNodeId === prNodeId,
+        },
+      });
     });
 
     return { nodes, edges };

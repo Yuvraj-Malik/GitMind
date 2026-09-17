@@ -15,6 +15,7 @@ function Topbar() {
   const aiStatus = useAppStore((state) => state.aiStatus);
   const notificationCount = useAppStore((state) => state.notificationCount);
   const loadDashboard = useAppStore((state) => state.loadDashboard);
+  const syncGithub = useAppStore((state) => state.syncGithub);
 
   return (
     <header className="topbar">
@@ -45,9 +46,9 @@ function Topbar() {
         <button
           className="icon-btn"
           type="button"
-          aria-label="reload data"
-          onClick={loadDashboard}
-          title="Reload backend data"
+          aria-label="sync and reload data"
+          onClick={syncGithub}
+          title="Sync from GitHub & reload"
         >
           <RefreshCw size={16} />
         </button>

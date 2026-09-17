@@ -3,6 +3,7 @@ const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
 
+// GitMind Server - Live GitHub Synced
 const env = require("./config/env");
 const { connectDb } = require("./config/db");
 const { initSocket } = require("./sockets/socketManager");
@@ -23,6 +24,8 @@ app.use(
   })
 );
 
+const { syncGithubRepo } = require("./services/githubService");
+
 app.get("/health", (req, res) => {
   const mongoose = require("mongoose");
   const states = { 0: "disconnected", 1: "connected", 2: "connecting", 3: "disconnecting" };
@@ -42,6 +45,25 @@ app.get("/activity", getActivity);
 app.get("/ai/logs", getAiLogs);
 app.post("/chat", postChat);
 app.post("/webhooks/github", verifyGithubSignature, routeGithubEvent);
+
+app.post("/sync", async (req, res, next) => {
+  try {
+    const { owner, repo } = req.body || {};
+    const result = await syncGithubRepo(owner, repo);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+app.get("/sync", async (req, res, next) => {
+  try {
+    const { owner, repo } = req.query || {};
+    const result = await syncGithubRepo(owner, repo);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.get("/auth/github", redirectGithub);
 app.get("/auth/github/callback", handleGithubCallback);
@@ -64,6 +86,11 @@ connectDb()
     server.listen(env.port, "0.0.0.0", () => {
       console.log(`[backend] listening on 0.0.0.0:${env.port}`);
     });
+    if (process.env.GITHUB_TOKEN) {
+      syncGithubRepo().catch((err) =>
+        console.warn("[backend] Initial GitHub sync warning:", err.message)
+      );
+    }
   })
   .catch((error) => {
     console.error("[backend] startup failed", error);

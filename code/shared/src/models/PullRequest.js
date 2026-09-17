@@ -5,6 +5,9 @@ const PullRequestSchema = new mongoose.Schema(
     number: { type: Number, required: true, unique: true },
     title: String,
     status: String,
+    branch: String,
+    author: String,
+    url: String,
     repositoryId: { type: mongoose.Schema.Types.ObjectId, ref: "Repository" },
   },
   { timestamps: true }

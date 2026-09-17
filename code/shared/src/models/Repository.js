@@ -6,6 +6,7 @@ const RepositorySchema = new mongoose.Schema(
     owner: { type: String, required: true },
     url: { type: String, required: true },
     commits: { type: Array, default: [] },
+    branches: { type: Array, default: [] },
   },
   { timestamps: true }
 );

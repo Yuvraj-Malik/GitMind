@@ -29,6 +29,16 @@ async function listBranches(repositoryId) {
     : await Repository.find().lean();
 
   return repositories.flatMap((repository) => {
+    if (Array.isArray(repository.branches) && repository.branches.length > 0) {
+      return repository.branches.map((b) => ({
+        name: typeof b === "string" ? b : b.name,
+        commitCount: b.commitCount || 1,
+        updatedAt: b.updatedAt || repository.updatedAt || new Date().toISOString(),
+        repositoryId: String(repository._id),
+        repositoryName: repository.name,
+      }));
+    }
+
     const branches = new Map();
     for (const commit of repository.commits || []) {
       const name = commit?.branch;

@@ -3,8 +3,10 @@ import {
   enqueueChatQuestion,
   fetchRepositories,
   fetchRepositoryCommits,
+  fetchBranches,
   fetchPullRequests,
   fetchAiLogs,
+  triggerSyncGithub,
 } from "../services/dashboardService";
 
 function nowTime() {
@@ -28,9 +30,10 @@ function mapPullRequest(rawPr, index) {
     id: String(rawPr?._id || rawPr?.id || `pr-${rawPr?.number || index}`),
     number: rawPr?.number || (index + 1),
     title: rawPr?.title || `Pull Request #${rawPr?.number || index + 1}`,
-    author: rawPr?.author || "git-mind-ai",
+    author: rawPr?.author || "Yuvraj-Malik",
     status: rawPr?.status || "open",
     branch: rawPr?.branch || (rawPr?.number === 5 ? "ai/fix-pr-5" : "main"),
+    url: rawPr?.url,
     testsPassed: rawPr?.status === "open" ? 1 : 0,
     testsTotal: 1,
     buildTime: rawPr?.buildTime || "12s",
@@ -61,6 +64,9 @@ const useAppStore = create((set, get) => ({
   activeRepositoryId: null,
   pullRequests: [],
   commits: [],
+  branches: [],
+  activeBranch: "main",
+  setActiveBranch: (activeBranch) => set({ activeBranch }),
   activePrId: null,
   logs: [],
   selectedLogId: null,
@@ -148,6 +154,14 @@ const useAppStore = create((set, get) => ({
         console.warn("fetchRepositoryCommits:", e.message);
       }
 
+      let rawBranches = [];
+      try {
+        rawBranches = await fetchBranches(activeRepositoryId);
+      } catch (e) {
+        console.warn("fetchBranches:", e.message);
+      }
+      const branches = Array.isArray(rawBranches) ? rawBranches : [];
+
       const pullRequests = Array.isArray(rawPrs) && rawPrs.length > 0
         ? rawPrs.map(mapPullRequest)
         : [];
@@ -176,6 +190,7 @@ const useAppStore = create((set, get) => ({
         activeRepositoryId,
         pullRequests,
         commits,
+        branches,
         activePrId,
         logs,
         selectedLogId: logs[0]?.id || null,
@@ -183,7 +198,7 @@ const useAppStore = create((set, get) => ({
         activityFeed: [
           {
             id: `ev-load-${Date.now()}`,
-            text: "Dashboard synced from backend",
+            text: `Synced ${branches.length} branches, ${commits.length} commits, ${pullRequests.length} PRs`,
             time: nowTime(),
           },
         ],
@@ -194,6 +209,19 @@ const useAppStore = create((set, get) => ({
       set({
         dashboardLoading: false,
         dashboardError: error?.message || "Failed to load dashboard",
+      });
+    }
+  },
+
+  syncGithub: async () => {
+    set({ dashboardLoading: true });
+    try {
+      await triggerSyncGithub();
+      await get().loadDashboard();
+    } catch (err) {
+      set({
+        dashboardLoading: false,
+        dashboardError: err?.response?.data?.message || err?.message || "Sync failed",
       });
     }
   },
