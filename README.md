@@ -20,6 +20,7 @@ Everything the user sees and interacts with. Built with React, Vite, Tailwind CS
 
 ### State & Services
 
+- **`config/firebase.js`**: Firebase Client SDK setup and `GithubAuthProvider` configuration for GitHub authentication.
 - **`store/appStore.js`**: Zustand global state store (for active repository, user state, and app-level setters).
 - **`hooks/useWebSocket.js`**: A custom React hook that maintains the live Socket.io connection and subscribes to real-time backend events.
 - **`services/apiClient.js`**: Axios configuration for standard HTTP requests to the backend API.
@@ -36,6 +37,7 @@ Everything the user sees and interacts with. Built with React, Vite, Tailwind CS
 
 ### Smart Features (`/features`)
 
+- **`features/auth/LoginPage.jsx`**: Login page supporting Firebase GitHub authentication popup, credential exchange, and direct OAuth fallback.
 - **`features/canvas/GraphCanvas.jsx`**: React Flow visualization surface for commit/AI nodes.
 - **`features/canvas/nodes/CommitNode.jsx`**: Visual node for a standard commit/PR state.
 - **`features/canvas/nodes/AINode.jsx`**: Visual node for AI actions (e.g., fix generation state).
@@ -66,6 +68,7 @@ The fast, traffic-directing server. It catches webhooks, updates the database, a
 
 ### REST Controllers (`/controllers`)
 
+- **`controllers/authController.js`**: Handles direct GitHub OAuth redirects and `/auth/firebase-github` user sync/JWT issuance.
 - **`controllers/repoController.js`**: Handles repository and commit-fetch endpoints.
 - **`controllers/chatController.js`**: Receives RAG chat requests and enqueues them for the AI worker.
 
