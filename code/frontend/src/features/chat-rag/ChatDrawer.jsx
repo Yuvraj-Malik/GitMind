@@ -5,18 +5,36 @@ import { Sparkles, Send } from "lucide-react";
 
 function ChatDrawer() {
   const [draft, setDraft] = useState("");
+  const [merging, setMerging] = useState(false);
   const chatMessages = useAppStore((state) => state.chatMessages);
   const submitChatQuestion = useAppStore((state) => state.submitChatQuestion);
   const pullRequests = useAppStore((state) => state.pullRequests);
   const activePrId = useAppStore((state) => state.activePrId);
   const toggleApproval = useAppStore((state) => state.toggleApproval);
+  const mergePullRequest = useAppStore((state) => state.mergePullRequest);
 
   const pr = pullRequests.find((item) => item.id === activePrId) || pullRequests[0] || null;
+  const isMerged = pr?.status === "merged";
 
   const readyToMerge = useMemo(
-    () => (pr?.approvals?.length ? pr.approvals.every((approval) => approval.done) : false),
-    [pr]
+    () => isMerged || (pr?.approvals?.length ? pr.approvals.every((approval) => approval.done) : false),
+    [pr, isMerged]
   );
+
+  const handleMerge = async () => {
+    if (!pr || !pr.number || merging || isMerged) return;
+    const confirm = window.confirm(`Merge PR #${pr.number} ("${pr.title}") directly into the base branch?`);
+    if (!confirm) return;
+
+    try {
+      setMerging(true);
+      await mergePullRequest(pr.number, `Merge PR #${pr.number} from GitMind`);
+    } catch (err) {
+      alert(`Merge failed: ${err?.response?.data?.message || err?.message}`);
+    } finally {
+      setMerging(false);
+    }
+  };
 
   const submit = (event) => {
     event.preventDefault();
@@ -84,15 +102,24 @@ function ChatDrawer() {
       </form>
 
       <div className="assistant-actions">
-        <button type="button" className="btn-review">
+        <button
+          type="button"
+          className="btn-review"
+          onClick={() => {
+            if (pr?.url) window.open(pr.url, "_blank");
+          }}
+          disabled={!pr}
+        >
           Review AI Fix
         </button>
         <button
           type="button"
-          className={`btn-merge ${readyToMerge ? "ready" : "pending"}`}
-          disabled={!readyToMerge}
+          onClick={handleMerge}
+          className={`btn-merge ${isMerged ? "ready" : readyToMerge ? "ready" : "pending"}`}
+          disabled={!readyToMerge || merging || isMerged}
+          style={isMerged ? { background: "rgba(16, 185, 129, 0.2)", borderColor: "#10b981", color: "#6ee7b7" } : undefined}
         >
-          {readyToMerge ? "Merge Fix" : "Await Approvals"}
+          {isMerged ? "Merged ✓" : merging ? "Merging..." : readyToMerge ? "Merge Fix" : "Await Approvals"}
         </button>
       </div>
     </div>

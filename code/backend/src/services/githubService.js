@@ -24,14 +24,34 @@ async function syncGithubRepo(
     const repoRes = await octokit.rest.repos.get({ owner, repo });
     const repoInfo = repoRes.data;
 
-    // 2. Fetch all Branches
+    // 2. Fetch all Branches with their actual commit dates
     const branchesRes = await octokit.rest.repos.listBranches({ owner, repo, per_page: 100 });
-    const branches = branchesRes.data.map((b) => ({
-      name: b.name,
-      commitSha: b.commit?.sha,
-      commitCount: b.name === "main" ? 12 : 1,
-      updatedAt: new Date().toISOString(),
-    }));
+    const branches = await Promise.all(
+      branchesRes.data.map(async (b) => {
+        let commitDate = null;
+        try {
+          if (b.commit?.sha) {
+            const commitRes = await octokit.rest.repos.getCommit({
+              owner,
+              repo,
+              ref: b.commit.sha,
+            });
+            commitDate =
+              commitRes.data.commit.committer?.date ||
+              commitRes.data.commit.author?.date;
+          }
+        } catch (e) {
+          console.warn(`[githubService] Failed to fetch commit for branch ${b.name}:`, e.message);
+        }
+
+        return {
+          name: b.name,
+          commitSha: b.commit?.sha,
+          commitCount: b.name === "main" ? 12 : 1,
+          updatedAt: commitDate || new Date().toISOString(),
+        };
+      })
+    );
 
     // 3. Fetch Commits
     const commitsRes = await octokit.rest.repos.listCommits({ owner, repo, per_page: 100 });
@@ -105,5 +125,88 @@ async function syncGithubRepo(
   }
 }
 
-module.exports = { getPullRequest, syncGithubRepo };
+async function mergePullRequest(
+  owner = process.env.GITHUB_REPO_OWNER || "Yuvraj-Malik",
+  repo = process.env.GITHUB_REPO_NAME || "git-mind-test",
+  pull_number,
+  commit_title
+) {
+  if (!process.env.GITHUB_TOKEN) {
+    throw new Error("GITHUB_TOKEN not configured");
+  }
+
+  const prNum = parseInt(pull_number, 10);
+  if (isNaN(prNum)) {
+    throw new Error("Invalid pull request number");
+  }
+
+  console.log(`[githubService] Merging PR #${prNum} in ${owner}/${repo}...`);
+  const mergeRes = await octokit.rest.pulls.merge({
+    owner,
+    repo,
+    pull_number: prNum,
+    commit_title: commit_title || `Merge pull request #${prNum} via GitMind`,
+    merge_method: "merge",
+  });
+
+  // Update in MongoDB
+  await PullRequest.findOneAndUpdate(
+    { number: prNum },
+    { status: "merged", updatedAt: new Date() }
+  );
+
+  // Trigger background re-sync
+  syncGithubRepo(owner, repo).catch((e) =>
+    console.warn("[githubService] Post-merge sync warning:", e.message)
+  );
+
+  return {
+    success: true,
+    merged: mergeRes.data.merged,
+    message: mergeRes.data.message,
+    sha: mergeRes.data.sha,
+  };
+}
+
+async function deleteBranch(
+  owner = process.env.GITHUB_REPO_OWNER || "Yuvraj-Malik",
+  repo = process.env.GITHUB_REPO_NAME || "git-mind-test",
+  branchName
+) {
+  if (!process.env.GITHUB_TOKEN) {
+    throw new Error("GITHUB_TOKEN not configured");
+  }
+
+  const cleanBranch = (branchName || "").trim().replace(/^refs\/heads\//, "");
+  if (!cleanBranch) {
+    throw new Error("Branch name required");
+  }
+
+  // Safety protection for primary branches
+  if (["main", "master", "develop", "production"].includes(cleanBranch.toLowerCase())) {
+    throw new Error(`Cannot delete protected branch: ${cleanBranch}`);
+  }
+
+  console.log(`[githubService] Deleting branch '${cleanBranch}' in ${owner}/${repo}...`);
+  await octokit.rest.git.deleteRef({
+    owner,
+    repo,
+    ref: `heads/${cleanBranch}`,
+  });
+
+  // Remove from MongoDB Repository.branches
+  await Repository.updateMany(
+    { owner, name: repo },
+    { $pull: { branches: { name: cleanBranch } } }
+  );
+
+  return {
+    success: true,
+    branch: cleanBranch,
+    message: `Branch '${cleanBranch}' deleted successfully.`,
+  };
+}
+
+module.exports = { getPullRequest, syncGithubRepo, mergePullRequest, deleteBranch };
+
 

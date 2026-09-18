@@ -35,6 +35,16 @@ export async function triggerSyncGithub() {
   return response.data;
 }
 
+export async function mergePullRequestApi(pullNumber, commitTitle) {
+  const response = await apiClient.post(`/pull-requests/${pullNumber}/merge`, { commit_title: commitTitle });
+  return response.data;
+}
+
+export async function deleteBranchApi(branchName) {
+  const response = await apiClient.post("/branches/delete", { name: branchName });
+  return response.data;
+}
+
 export async function enqueueChatQuestion({ question, repositoryId }) {
   const response = await apiClient.post("/chat", {
     question,
@@ -42,3 +52,4 @@ export async function enqueueChatQuestion({ question, repositoryId }) {
   });
   return response.data;
 }
+

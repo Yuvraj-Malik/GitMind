@@ -8,7 +8,8 @@ import {
   GitPullRequest,
   CheckCircle2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from "lucide-react";
 import GraphCanvas from "../canvas/GraphCanvas";
 import ChatDrawer from "../chat-rag/ChatDrawer";
@@ -24,6 +25,7 @@ function DashboardPage() {
   const searchQuery = useAppStore((state) => state.searchQuery);
   const loadDashboard = useAppStore((state) => state.loadDashboard);
   const syncGithub = useAppStore((state) => state.syncGithub);
+  const deleteBranch = useAppStore((state) => state.deleteBranch);
   const appendSocketEvent = useAppStore((state) => state.appendSocketEvent);
   const dashboardLoading = useAppStore((state) => state.dashboardLoading);
   const dashboardError = useAppStore((state) => state.dashboardError);
@@ -179,7 +181,37 @@ function DashboardPage() {
                         <GitBranch size={14} style={{ color: activeBranch === b.name ? "#38bdf8" : "#94a3b8" }} />
                         <span className="dock-branch-name">{b.name}</span>
                       </div>
-                      <span className="dock-branch-badge">{b.commitCount || 1} commits</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span className="dock-branch-badge">{b.commitCount || 1} commits</span>
+                        {b.name !== "main" && b.name !== "master" && (
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Delete branch "${b.name}" from GitHub and GitMind?`)) {
+                                try {
+                                  await deleteBranch(b.name);
+                                } catch (err) {
+                                  alert(`Failed: ${err?.message}`);
+                                }
+                              }
+                            }}
+                            title={`Delete branch ${b.name}`}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#f87171",
+                              cursor: "pointer",
+                              padding: "2px 4px",
+                              borderRadius: "4px",
+                              display: "inline-flex",
+                              alignItems: "center"
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

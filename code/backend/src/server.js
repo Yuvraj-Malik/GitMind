@@ -24,7 +24,42 @@ app.use(
   })
 );
 
-const { syncGithubRepo } = require("./services/githubService");
+const { syncGithubRepo, mergePullRequest, deleteBranch } = require("./services/githubService");
+
+app.post("/pull-requests/:number/merge", async (req, res) => {
+  try {
+    const { owner, repo, commit_title } = req.body || {};
+    const result = await mergePullRequest(owner, repo, req.params.number, commit_title);
+    res.json(result);
+  } catch (error) {
+    console.error("[backend] Merge PR error:", error);
+    res.status(500).json({ message: error.message || "Failed to merge pull request." });
+  }
+});
+
+app.post("/branches/delete", async (req, res) => {
+  try {
+    const { owner, repo, name } = req.body || {};
+    const branchName = name || req.query?.name;
+    const result = await deleteBranch(owner, repo, branchName);
+    res.json(result);
+  } catch (error) {
+    console.error("[backend] Delete branch error:", error);
+    res.status(500).json({ message: error.message || "Failed to delete branch." });
+  }
+});
+
+app.delete("/branches", async (req, res) => {
+  try {
+    const { owner, repo, name } = req.body || {};
+    const branchName = name || req.query?.name;
+    const result = await deleteBranch(owner, repo, branchName);
+    res.json(result);
+  } catch (error) {
+    console.error("[backend] Delete branch error:", error);
+    res.status(500).json({ message: error.message || "Failed to delete branch." });
+  }
+});
 
 app.get("/health", (req, res) => {
   const mongoose = require("mongoose");

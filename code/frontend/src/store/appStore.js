@@ -7,6 +7,8 @@ import {
   fetchPullRequests,
   fetchAiLogs,
   triggerSyncGithub,
+  mergePullRequestApi,
+  deleteBranchApi,
 } from "../services/dashboardService";
 
 function nowTime() {
@@ -182,7 +184,7 @@ const useAppStore = create((set, get) => ({
           }))
         : [];
 
-      const activePr = pullRequests[0] || null;
+      const activePr = pullRequests.find((p) => p.status === "open") || pullRequests[0] || null;
       const activePrId = activePr?.id || null;
 
       set({
@@ -194,7 +196,7 @@ const useAppStore = create((set, get) => ({
         activePrId,
         logs,
         selectedLogId: logs[0]?.id || null,
-        selectedNodeId: activePrId ? `node-${activePrId}` : (commits[0] ? `node-${commits[0].id}` : null),
+        selectedNodeId: activePrId ? `node-pr-${activePrId}` : (commits[0] ? `node-${commits[0].id}` : null),
         activityFeed: [
           {
             id: `ev-load-${Date.now()}`,
@@ -226,6 +228,63 @@ const useAppStore = create((set, get) => ({
     }
   },
 
+  mergePullRequest: async (pullNumber, commitTitle) => {
+    set({ dashboardLoading: true, dashboardError: null });
+    try {
+      const result = await mergePullRequestApi(pullNumber, commitTitle);
+      set((state) => ({
+        pullRequests: state.pullRequests.map((pr) =>
+          Number(pr.number) === Number(pullNumber)
+            ? { ...pr, status: "merged" }
+            : pr
+        ),
+        activityFeed: [
+          {
+            id: `ev-merge-${Date.now()}`,
+            text: `Merged PR #${pullNumber} successfully into base branch`,
+            time: nowTime(),
+          },
+          ...state.activityFeed,
+        ],
+      }));
+      await get().loadDashboard();
+      return result;
+    } catch (err) {
+      set({
+        dashboardLoading: false,
+        dashboardError: err?.response?.data?.message || err?.message || "Failed to merge PR",
+      });
+      throw err;
+    }
+  },
+
+  deleteBranch: async (branchName) => {
+    set({ dashboardLoading: true, dashboardError: null });
+    try {
+      const result = await deleteBranchApi(branchName);
+      set((state) => ({
+        branches: state.branches.filter((b) => (typeof b === "string" ? b : b.name) !== branchName),
+        activeBranch: state.activeBranch === branchName ? "main" : state.activeBranch,
+        activityFeed: [
+          {
+            id: `ev-del-branch-${Date.now()}`,
+            text: `Deleted branch '${branchName}' from GitHub & GitMind`,
+            time: nowTime(),
+          },
+          ...state.activityFeed,
+        ],
+      }));
+      await get().loadDashboard();
+      return result;
+    } catch (err) {
+      set({
+        dashboardLoading: false,
+        dashboardError: err?.response?.data?.message || err?.message || "Failed to delete branch",
+      });
+      throw err;
+    }
+  },
+
   selectPullRequest: (activePrId) => {
     const pr = get().pullRequests.find((item) => item.id === activePrId);
     const log = get().logs.find((item) => item.prId === activePrId);
@@ -236,7 +295,21 @@ const useAppStore = create((set, get) => ({
     });
   },
 
-  selectNode: (selectedNodeId) => set({ selectedNodeId }),
+  selectNode: (selectedNodeId) => {
+    const prs = get().pullRequests;
+    const match = prs.find(
+      (pr) =>
+        `node-pr-${pr.id}` === selectedNodeId ||
+        `node-ai-${pr.id}` === selectedNodeId ||
+        pr.id === selectedNodeId ||
+        `node-${pr.id}` === selectedNodeId
+    );
+    if (match) {
+      set({ selectedNodeId, activePrId: match.id });
+    } else {
+      set({ selectedNodeId });
+    }
+  },
 
   selectLog: (selectedLogId) => set({ selectedLogId }),
 

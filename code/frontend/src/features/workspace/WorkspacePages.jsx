@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Bot, Clock3, FolderGit2, GitBranch, GitPullRequest, RefreshCw } from "lucide-react";
+import { Bot, Clock3, FolderGit2, GitBranch, GitPullRequest, RefreshCw, Trash2, GitMerge, Check } from "lucide-react";
 import Topbar from "../topbar/Topbar";
 import useAppStore from "../../store/appStore";
 import {
@@ -68,21 +68,63 @@ function CommitList({ commits, error }) { if (error) return <p className="m-0 te
 
 export function BranchesPage() {
   const repositories = useAppStore((state) => state.repositories);
+  const deleteBranch = useAppStore((state) => state.deleteBranch);
   const { data, loading, error, reload } = useBackendData(fetchBranches, []);
+  const [deletingBranch, setDeletingBranch] = useState(null);
   const branches = data.length > 0 ? data : (repositories[0]?.branches || []);
+
+  const handleDelete = async (branchName) => {
+    if (branchName === "main" || branchName === "master") {
+      alert("Protected branch cannot be deleted.");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Are you sure you want to delete branch "${branchName}"?\nThis will delete it from both GitHub and GitMind.`
+    );
+    if (!confirmed) return;
+
+    setDeletingBranch(branchName);
+    try {
+      await deleteBranch(branchName);
+      await reload();
+    } catch (err) {
+      alert(`Failed to delete branch: ${err?.response?.data?.message || err?.message}`);
+    } finally {
+      setDeletingBranch(null);
+    }
+  };
 
   return (
     <BackendPage title="Branches" description="All branches tracked in the GitHub repository." icon={GitBranch}>
       <PageTools reload={reload} />
       <LoadState loading={loading && !branches.length} error={error} empty={!branches.length} onRetry={reload}>
         <Table 
-          headers={["Branch", "Repository", "Commits", "Latest activity"]} 
-          rows={branches.map((branch) => [
-            branch.name, 
-            branch.repositoryName || "git-mind-test", 
-            branch.commitCount || 1, 
-            displayDate(branch.updatedAt)
-          ])} 
+          headers={["Branch", "Repository", "Commits", "Latest activity", "Actions"]} 
+          rows={branches.map((branch) => {
+            const isProtected = branch.name === "main" || branch.name === "master";
+            return [
+              <span className="font-medium text-sky-200">{branch.name}</span>, 
+              branch.repositoryName || "git-mind-test", 
+              branch.commitCount || 1, 
+              displayDate(branch.updatedAt),
+              isProtected ? (
+                <span className="rounded border border-slate-700 bg-slate-800/80 px-2 py-0.5 text-xs text-slate-400">
+                  Protected (Default)
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(branch.name)}
+                  disabled={deletingBranch === branch.name}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
+                  title={`Delete ${branch.name} from GitHub`}
+                >
+                  <Trash2 size={12} />
+                  {deletingBranch === branch.name ? "Deleting..." : "Delete"}
+                </button>
+              )
+            ];
+          })} 
         />
       </LoadState>
     </BackendPage>
@@ -91,8 +133,65 @@ export function BranchesPage() {
 
 export function PullRequestsPage() {
   const activeRepositoryId = useAppStore((state) => state.activeRepositoryId);
+  const mergePullRequest = useAppStore((state) => state.mergePullRequest);
+  const [mergingNumber, setMergingNumber] = useState(null);
   const { data, loading, error, reload } = useBackendData(() => fetchPullRequests(activeRepositoryId), [activeRepositoryId]);
-  return <BackendPage title="Pull Requests" description="Webhook-backed pull request status records." icon={GitPullRequest}><PageTools reload={reload} /><LoadState loading={loading} error={error} empty={!data.length} onRetry={reload}><Table headers={["Pull request", "Title", "Status", "Updated"]} rows={data.map((pr) => [`#${pr.number}`, pr.title || "No title received", <Status value={pr.status} />, displayDate(pr.updatedAt)])} /></LoadState></BackendPage>;
+
+  const handleMerge = async (prNumber, title) => {
+    const confirmed = window.confirm(
+      `Merge PR #${prNumber} ("${title}") directly into the base branch?\nThis will merge on GitHub and update GitMind.`
+    );
+    if (!confirmed) return;
+
+    setMergingNumber(prNumber);
+    try {
+      await mergePullRequest(prNumber, `Merge pull request #${prNumber} via GitMind`);
+      await reload();
+    } catch (err) {
+      alert(`Failed to merge PR: ${err?.response?.data?.message || err?.message}`);
+    } finally {
+      setMergingNumber(null);
+    }
+  };
+
+  return (
+    <BackendPage title="Pull Requests" description="Webhook-backed pull request status records." icon={GitPullRequest}>
+      <PageTools reload={reload} />
+      <LoadState loading={loading} error={error} empty={!data.length} onRetry={reload}>
+        <Table 
+          headers={["Pull request", "Title", "Status", "Updated", "Actions"]} 
+          rows={data.map((pr) => {
+            const isMerged = pr.status === "merged";
+            const isOpen = pr.status === "open";
+            return [
+              `#${pr.number}`, 
+              pr.title || "No title received", 
+              <Status value={pr.status} />, 
+              displayDate(pr.updatedAt),
+              isOpen ? (
+                <button
+                  type="button"
+                  onClick={() => handleMerge(pr.number, pr.title)}
+                  disabled={mergingNumber === pr.number}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/25 disabled:opacity-50"
+                  title="Merge PR directly to GitHub"
+                >
+                  <GitMerge size={12} />
+                  {mergingNumber === pr.number ? "Merging..." : "Merge PR"}
+                </button>
+              ) : isMerged ? (
+                <span className="inline-flex items-center gap-1 rounded border border-purple-500/30 bg-purple-500/15 px-2 py-0.5 text-xs text-purple-300">
+                  <Check size={11} /> Merged
+                </span>
+              ) : (
+                <span className="text-xs text-slate-500 capitalize">{pr.status}</span>
+              )
+            ];
+          })} 
+        />
+      </LoadState>
+    </BackendPage>
+  );
 }
 
 export function ActivityPage() {
