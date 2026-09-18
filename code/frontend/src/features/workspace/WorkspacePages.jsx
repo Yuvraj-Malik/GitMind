@@ -147,8 +147,9 @@ export function PullRequestsPage() {
     try {
       await mergePullRequest(prNumber, `Merge pull request #${prNumber} via GitMind`);
       await reload();
+      alert(`Pull Request #${prNumber} merged successfully on GitHub!`);
     } catch (err) {
-      alert(`Failed to merge PR: ${err?.response?.data?.message || err?.message}`);
+      alert(`Cannot merge PR #${prNumber}:\n\n${err?.message || "Merge failed."}`);
     } finally {
       setMergingNumber(null);
     }

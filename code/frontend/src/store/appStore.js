@@ -250,11 +250,12 @@ const useAppStore = create((set, get) => ({
       await get().loadDashboard();
       return result;
     } catch (err) {
+      const errMsg = err?.response?.data?.message || err?.message || "Failed to merge PR";
       set({
         dashboardLoading: false,
-        dashboardError: err?.response?.data?.message || err?.message || "Failed to merge PR",
+        dashboardError: errMsg,
       });
-      throw err;
+      throw new Error(errMsg);
     }
   },
 

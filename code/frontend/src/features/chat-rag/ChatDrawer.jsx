@@ -29,8 +29,9 @@ function ChatDrawer() {
     try {
       setMerging(true);
       await mergePullRequest(pr.number, `Merge PR #${pr.number} from GitMind`);
+      alert(`Pull Request #${pr.number} merged successfully on GitHub!`);
     } catch (err) {
-      alert(`Merge failed: ${err?.response?.data?.message || err?.message}`);
+      alert(`Cannot merge PR #${pr.number}:\n\n${err?.message || "Merge failed."}`);
     } finally {
       setMerging(false);
     }

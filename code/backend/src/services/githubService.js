@@ -140,14 +140,65 @@ async function mergePullRequest(
     throw new Error("Invalid pull request number");
   }
 
+  console.log(`[githubService] Checking PR #${prNum} in ${owner}/${repo}...`);
+  let prRes;
+  try {
+    prRes = await octokit.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: prNum,
+    });
+  } catch (getErr) {
+    console.warn(`[githubService] Could not fetch PR #${prNum} details:`, getErr.message);
+  }
+
+  if (prRes?.data) {
+    if (prRes.data.merged) {
+      await PullRequest.findOneAndUpdate(
+        { number: prNum },
+        { status: "merged", updatedAt: new Date() }
+      );
+      return {
+        success: true,
+        merged: true,
+        message: `Pull Request #${prNum} is already merged on GitHub.`,
+      };
+    }
+
+    if (prRes.data.state === "closed") {
+      throw new Error(`Pull Request #${prNum} is already closed on GitHub.`);
+    }
+
+    if (prRes.data.mergeable === false || prRes.data.mergeable_state === "dirty") {
+      throw new Error(
+        `Pull Request #${prNum} has merge conflicts with '${prRes.data.base.ref}'. GitHub cannot merge conflicted pull requests until conflicts are resolved.`
+      );
+    }
+  }
+
   console.log(`[githubService] Merging PR #${prNum} in ${owner}/${repo}...`);
-  const mergeRes = await octokit.rest.pulls.merge({
-    owner,
-    repo,
-    pull_number: prNum,
-    commit_title: commit_title || `Merge pull request #${prNum} via GitMind`,
-    merge_method: "merge",
-  });
+  let mergeRes;
+  try {
+    mergeRes = await octokit.rest.pulls.merge({
+      owner,
+      repo,
+      pull_number: prNum,
+      commit_title: commit_title || `Merge pull request #${prNum} via GitMind`,
+      merge_method: "merge",
+    });
+  } catch (err) {
+    if (err.status === 405 || (err.message && err.message.toLowerCase().includes("conflict"))) {
+      throw new Error(
+        `Pull Request #${prNum} has merge conflicts with the base branch and cannot be merged automatically.`
+      );
+    }
+    if (err.status === 409) {
+      throw new Error(
+        `Pull Request #${prNum} head branch was modified or base branch changed. Please retry.`
+      );
+    }
+    throw new Error(err.response?.data?.message || err.message || `Failed to merge PR #${prNum}`);
+  }
 
   // Update in MongoDB
   await PullRequest.findOneAndUpdate(
@@ -163,7 +214,7 @@ async function mergePullRequest(
   return {
     success: true,
     merged: mergeRes.data.merged,
-    message: mergeRes.data.message,
+    message: mergeRes.data.message || "Pull Request successfully merged.",
     sha: mergeRes.data.sha,
   };
 }
