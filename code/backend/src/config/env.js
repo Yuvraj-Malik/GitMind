@@ -33,6 +33,11 @@ module.exports = {
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
+  // GitHub usernames allowed to use the local sandbox demo (it pushes with the server's GITHUB_TOKEN).
+  adminGithubUsers: (process.env.ADMIN_GITHUB_USERS || process.env.GITHUB_REPO_OWNER || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
   // Repos (owner/name) the webhook may act on. Empty = only GITHUB_REPO_OWNER/GITHUB_REPO_NAME.
   allowedRepos: (process.env.ALLOWED_REPOS ||
     (process.env.GITHUB_REPO_OWNER && process.env.GITHUB_REPO_NAME

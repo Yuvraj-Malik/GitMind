@@ -2,7 +2,7 @@ const { isAiFixBranch, SOCKET_EVENTS, Repository } = require("shared");
 const env = require("../config/env");
 const { createWebhookFixJob } = require("../services/queueService");
 const { createAiLog } = require("../services/dbService");
-const { emitEvent } = require("../sockets/socketManager");
+const { emitToUser } = require("../sockets/socketManager");
 const { notify } = require("../services/notificationService");
 
 /**
@@ -51,7 +51,8 @@ async function routeGithubEvent(req, res) {
     if (event === "ping") return res.status(200).json({ ok: true, pong: true });
 
     const fullName = payload?.repository?.full_name || "";
-    const connected = fullName ? await Repository.findOne({ fullNameLower: fullName.toLowerCase() }).select("_id fullNameLower").lean() : null;
+    const connected = fullName ? await Repository.findOne({ fullNameLower: fullName.toLowerCase() }).select("_id fullNameLower connectedBy").lean() : null;
+    const ownerId = connected?.connectedBy ? String(connected.connectedBy) : null;
 
     if (event === "check_run") {
       // Act on repos connected in the app (plus any listed in ALLOWED_REPOS for the sandbox setup).
@@ -77,8 +78,9 @@ async function routeGithubEvent(req, res) {
         prNumber: decision.job.prNumber,
         repositoryId: connected?._id,
       });
-      emitEvent(SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, ...decision.job });
+      emitToUser(ownerId, SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, ...decision.job });
       notify({
+        userId: ownerId,
         type: "check_failed",
         title: `CI failed on ${decision.job.headBranch}`,
         body: `"${decision.job.checkName}" failed${decision.job.prNumber ? ` on PR #${decision.job.prNumber}` : ""}. Git-Mind queued a fix.`,
@@ -100,7 +102,7 @@ async function routeGithubEvent(req, res) {
         );
       }
       if (status === "merged") {
-        notify({ type: "pr_merged", title: `PR #${payload.number} merged`, body: payload?.pull_request?.title || "", link: payload?.pull_request?.html_url });
+        notify({ userId: ownerId, type: "pr_merged", title: `PR #${payload.number} merged`, body: payload?.pull_request?.title || "", link: payload?.pull_request?.html_url });
       }
       return res.status(202).json({ ok: true });
     }

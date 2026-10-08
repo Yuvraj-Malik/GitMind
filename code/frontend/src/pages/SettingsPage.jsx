@@ -30,7 +30,7 @@ export default function SettingsPage() {
             <>
               <table className="table">
                 <tbody>
-                  {Object.entries(d.services).map(([k, s]) => (
+                  {Object.entries(d.services).filter(([, s]) => s).map(([k, s]) => (
                     <tr key={k}>
                       <td className="w-[240px] font-medium">{LABELS[k] || k}</td>
                       <td>

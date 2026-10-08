@@ -66,7 +66,7 @@ async function listBranches(repositoryId) {
 
 async function listActivity(repositoryIds) {
   const prFilter = repositoryIds ? { repositoryId: { $in: repositoryIds } } : {};
-  const logFilter = repositoryIds ? { $or: [{ repositoryId: { $in: repositoryIds } }, { repoName: "sandbox" }] } : {};
+  const logFilter = repositoryIds ? { repositoryId: { $in: repositoryIds } } : {};
   const [pullRequests, logs] = await Promise.all([
     PullRequest.find(prFilter).sort({ updatedAt: -1 }).limit(50).lean(),
     AILog.find(logFilter).sort({ updatedAt: -1, createdAt: -1 }).limit(50).lean(),

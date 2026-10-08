@@ -4,7 +4,8 @@ const { Repository, PullRequest, SOCKET_EVENTS } = require("shared");
 const gh = require("../services/githubService");
 const { createManualFixJob, getJobStatus } = require("../services/queueService");
 const { createAiLog, listBranches } = require("../services/dbService");
-const { emitEvent } = require("../sockets/socketManager");
+const { emitToUser } = require("../sockets/socketManager");
+const { isAdmin } = require("../middleware/auth");
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -109,14 +110,15 @@ const removeBranch = wrap(async (req, res) => {
  */
 const triggerFix = wrap(async (req, res) => {
   if (req.params.id === "sandbox") {
+    if (!isAdmin(req.user)) throw new gh.HttpError(403, "The sandbox demo is only available to the workspace owner");
     const { filePath } = req.body || {};
     if (!filePath || typeof filePath !== "string") throw new gh.HttpError(400, "Missing filePath");
     const basename = path.basename(filePath.replace(/^bugs[\\/]/, ""));
     if (!/^[\w.-]+\.js$/.test(basename) || /\.test\.js$/.test(basename)) throw new gh.HttpError(400, "filePath must be a non-test .js file in bugs/");
     const rel = `bugs/${basename}`;
-    const { job } = await createManualFixJob({ relativeFile: rel, requestedBy: req.user.username });
+    const { job } = await createManualFixJob({ relativeFile: rel, requestedBy: req.user.username, userId: String(req.user.id) });
     await createAiLog({ jobId: job.id, trigger: "manual", action: "Fix workflow queued", reasoning: `Manual sandbox fix for ${rel} by ${req.user.username}.`, status: "queued", filePath: rel, repoName: "sandbox" });
-    emitEvent(SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, filePath: rel });
+    emitToUser(req.user.id, SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, filePath: rel });
     return res.status(202).json({ ok: true, jobId: job.id });
   }
 
@@ -131,9 +133,10 @@ const triggerFix = wrap(async (req, res) => {
     headBranch: branch,
     baseBranch: branch,
     requestedBy: req.user.username,
+    userId: String(req.user.id),
   });
   await createAiLog({ jobId: job.id, trigger: "manual", action: "Fix workflow queued", reasoning: `Manual run on ${repo.fullName}@${branch} by ${req.user.username}.`, status: "queued", repoName: repo.fullName, repositoryId: repo._id, headSha: b.commitSha, baseBranch: branch });
-  emitEvent(SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, repoName: repo.fullName, repositoryId: String(repo._id) });
+  emitToUser(req.user.id, SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, repoName: repo.fullName, repositoryId: String(repo._id) });
   res.status(202).json({ ok: true, jobId: job.id });
 });
 

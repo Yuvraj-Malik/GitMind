@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const { Repository } = require("shared");
 const { listActivity, listAiLogs } = require("../services/dbService");
+const { isAdmin } = require("../middleware/auth");
 
 async function userRepoIds(req) {
   const id = req.query.repositoryId;
@@ -23,7 +24,9 @@ async function getActivity(req, res, next) {
 async function getAiLogs(req, res, next) {
   try {
     const ids = await userRepoIds(req);
-    res.json(await listAiLogs({ $or: [{ repositoryId: { $in: ids } }, { repoName: "sandbox" }, { repositoryId: null, trigger: "manual", filePath: { $exists: true, $ne: "" } }] }));
+    const or = [{ repositoryId: { $in: ids } }];
+    if (isAdmin(req.user)) or.push({ repoName: "sandbox" }, { repositoryId: null, trigger: "manual", filePath: { $exists: true, $ne: "" } });
+    res.json(await listAiLogs({ $or: or }));
   } catch (error) {
     next(error);
   }

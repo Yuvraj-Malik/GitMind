@@ -96,7 +96,7 @@ async function processFixJob(job) {
   const data = job.data || {};
   const jobId = job.id;
   const trigger = data.trigger || "manual";
-  const base = { trigger, repoName: data.repoFullName || "sandbox", repositoryId: data.repositoryId || undefined, headSha: data.headSha, prNumber: data.prNumber };
+  const base = { trigger, repoName: data.repoFullName || "sandbox", repositoryId: data.repositoryId || undefined, userId: data.userId || undefined, headSha: data.headSha, prNumber: data.prNumber };
   const started = Date.now();
 
   await writeAILog({ jobId, ...base, action: "Fix in progress", status: "running" });

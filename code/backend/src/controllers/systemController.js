@@ -55,7 +55,7 @@ async function getSystemStatus(req, res) {
       publicUrl: webhookUrl() ? { ok: true, detail: webhookUrl() } : { ok: false, detail: "PUBLIC_WEBHOOK_URL not set: CI-triggered fixes are off (manual runs still work)" },
       llm: { ok: Boolean(process.env.GEMINI_API_KEY), detail: process.env.GEMINI_API_KEY ? process.env.FIX_MODEL || "gemini-2.5-flash" : "GEMINI_API_KEY not set" },
       webhook: { ok: Boolean(env.githubWebhookSecret), detail: env.githubWebhookSecret ? "secret configured" : "GITHUB_WEBHOOK_SECRET not set" },
-      sandbox: { ok: Boolean(sandbox && fs.existsSync(sandbox)), detail: sandbox ? (fs.existsSync(sandbox) ? "found" : "path does not exist") : "TEST_REPO_PATH not set" },
+      sandbox: !require("../middleware/auth").isAdmin(req.user) ? undefined : { ok: Boolean(sandbox && fs.existsSync(sandbox)), detail: sandbox ? (fs.existsSync(sandbox) ? "found" : "path does not exist") : "TEST_REPO_PATH not set" },
     },
     queue,
     connectedRepos: (await Repository.find({ connectedBy: req.user.id }).select("fullName webhookStatus").lean()).map((r) => ({ fullName: r.fullName, webhookStatus: r.webhookStatus })),
@@ -92,6 +92,7 @@ async function getOverview(req, res, next) {
 
 /** Fixable files in the sandbox (bugs/*.js that have a paired test). */
 async function getSandboxFiles(req, res) {
+  if (!require("../middleware/auth").isAdmin(req.user)) return res.json({ available: false, files: [], detail: "Owner only" });
   const dir = process.env.TEST_REPO_PATH ? path.join(process.env.TEST_REPO_PATH, "bugs") : path.resolve(__dirname, "../../../ai-worker/scripts/test-repo/bugs");
   if (!fs.existsSync(dir)) return res.json({ available: false, files: [], detail: "Sandbox bugs/ folder not found (set TEST_REPO_PATH)" });
   const files = fs
@@ -108,10 +109,10 @@ async function getMe(req, res) {
 }
 
 async function getNotifications(req, res, next) {
-  try { res.json(await listNotifications(Number(req.query.limit) || 30)); } catch (e) { next(e); }
+  try { res.json(await listNotifications(req.user.id, Number(req.query.limit) || 30)); } catch (e) { next(e); }
 }
 async function postNotificationsRead(req, res, next) {
-  try { res.json(await markRead(req.body?.ids)); } catch (e) { next(e); }
+  try { res.json(await markRead(req.user.id, req.body?.ids)); } catch (e) { next(e); }
 }
 
 module.exports = { getSystemStatus, getOverview, getSandboxFiles, getMe, getNotifications, postNotificationsRead };

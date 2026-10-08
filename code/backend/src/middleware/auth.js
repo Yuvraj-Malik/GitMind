@@ -47,4 +47,8 @@ function rateLimit({ windowMs = 60_000, max = 5, name = "default" } = {}) {
   };
 }
 
-module.exports = { requireAuth, rateLimit, isUserAllowed };
+function isAdmin(user) {
+  return Boolean(user?.username) && env.adminGithubUsers.includes(String(user.username).toLowerCase());
+}
+
+module.exports = { requireAuth, rateLimit, isUserAllowed, isAdmin };
