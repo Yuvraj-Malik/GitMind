@@ -72,7 +72,30 @@ function toRel(repoDir, abs) {
 }
 
 /** File paths mentioned in test output (stack traces etc.), in order of first appearance. */
+/**
+ * Rewrite absolute paths to the repo (plain, forward-slash and file:// URL forms) as "./",
+ * so paths containing spaces (e.g. "D:\\My Programs\\...") still parse as relative paths.
+ */
+function relativizeOutput(repoDir, output) {
+  let text = String(output || "");
+  const forms = new Set();
+  const abs = path.resolve(repoDir);
+  for (const p of [abs, abs.replace(/\\/g, "/")]) {
+    forms.add(p);
+    forms.add(encodeURI(p));
+    forms.add(`file:///${p.replace(/^\//, "")}`);
+    forms.add(`file:///${encodeURI(p).replace(/^\//, "")}`);
+  }
+  // Longest first so "file:///D:/x" is replaced before "D:/x".
+  for (const f of [...forms].sort((a, b) => b.length - a.length)) {
+    const esc = f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    text = text.replace(new RegExp(esc + "[\\\\/]", process.platform === "win32" ? "gi" : "g"), "./");
+  }
+  return text;
+}
+
 function filesFromOutput(repoDir, output) {
+  output = relativizeOutput(repoDir, output);
   const found = [];
   const re = /((?:[A-Za-z]:)?[\\/]?(?:[\w.@-]+[\\/])*[\w.@-]+\.(?:[cm]?[jt]sx?))(?::\d+)?/g;
   let m;

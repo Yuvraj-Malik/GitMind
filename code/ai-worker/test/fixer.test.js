@@ -129,3 +129,18 @@ test("quota errors fail fast as llm_rate_limited", async () => {
   assert.strictEqual(r.failed_at, "llm_rate_limited");
   assert.strictEqual(calls, 1);
 });
+
+test("file selection works when the repo path contains spaces (Windows-style user folders)", () => {
+  const spaced = fs.mkdtempSync(path.join(tmp, "My Programs "));
+  fs.mkdirSync(path.join(spaced, "test"));
+  fs.mkdirSync(path.join(spaced, "src"));
+  fs.writeFileSync(path.join(spaced, "src", "cart.js"), "module.exports = {};\n");
+  fs.writeFileSync(path.join(spaced, "test", "cart.test.js"), "require('../src/cart');\n");
+  const out = [
+    `    at TestContext.<anonymous> (${path.join(spaced, "test", "cart.test.js")}:4:10)`,
+    `    at file://${encodeURI(path.join(spaced, "test", "cart.test.js"))}:4:10`,
+  ].join("\n");
+  const { files, contextFiles } = ws.selectFiles(spaced, out);
+  assert.deepStrictEqual(files.map((f) => f.filepath), ["src/cart.js"]);
+  assert.deepStrictEqual(contextFiles.map((f) => f.filepath), ["test/cart.test.js"]);
+});

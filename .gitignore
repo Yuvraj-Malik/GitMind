@@ -66,6 +66,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+# ...but the frontend source folder named lib is real code
+!code/frontend/src/lib/
 lib64/
 parts/
 sdist/
@@ -88,3 +90,6 @@ venv.bak/
 
 # Git-Mind worker clones of target repos
 **/.workspaces/
+
+# Separate repo (github.com/Yuvraj-Malik/gitmind-demo)
+gitmind-demo/
