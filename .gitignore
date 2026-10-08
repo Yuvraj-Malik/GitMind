@@ -85,3 +85,6 @@ venv.bak/
 # Agent/AI Configuration
 .gemini/
 .agents/
+
+# Git-Mind worker clones of target repos
+**/.workspaces/

@@ -1,0 +1,15 @@
+# Copy into the sandbox repo. Each run produces a check_run event that Git-Mind listens for.
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node run-tests.js

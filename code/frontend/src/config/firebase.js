@@ -21,5 +21,6 @@ export const githubProvider = new GithubAuthProvider();
 githubProvider.addScope("read:user");
 githubProvider.addScope("user:email");
 githubProvider.addScope("repo");
+githubProvider.addScope("admin:repo_hook");
 
 export default app;

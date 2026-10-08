@@ -4,9 +4,9 @@
   "description": "",
   "main": "src/queue/worker.js",
   "scripts": {
-    "dev": "nodemon src/queue/worker.js",
+    "dev": "node --watch src/queue/worker.js",
     "start": "node src/queue/worker.js",
-    "test": "echo \"No tests configured yet\""
+    "test": "node --test \"test/**/*.test.js\""
   },
   "keywords": [],
   "author": "",
@@ -21,15 +21,16 @@
     "axios": "^1.19.0",
     "bullmq": "^6.0.2",
     "dotenv": "^17.4.2",
+    "firebase": "13.0.0",
     "ioredis": "^5.11.1",
     "langchain": "^1.5.4",
     "mongoose": "^9.9.0",
     "openai": "^7.2.0",
     "shared": "*",
-    "simple-git": "^3.36.0",
+    "simple-git": "^4.0.2",
     "tree-sitter": "^0.25.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^1.4.1"
   }
 }

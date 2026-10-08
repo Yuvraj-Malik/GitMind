@@ -4,9 +4,9 @@
   "description": "",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test": "echo \"No tests configured yet\""
+    "test": "node --test \"test/**/*.test.js\""
   },
   "keywords": [],
   "author": "",
@@ -19,14 +19,15 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "firebase": "13.0.0",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
-    "ai-worker": "*",
     "mongoose": "^9.9.0",
     "shared": "*",
+    "simple-git": "4.0.2",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^1.4.1"
   }
 }

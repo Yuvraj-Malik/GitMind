@@ -1,11 +1,14 @@
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
-const { User } = require("shared");
+const { User, encryptSecret } = require("shared");
 const env = require("../config/env");
+const { isUserAllowed } = require("../middleware/auth");
 
 const GITHUB_OAUTH_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
+// repo: read/write code + PRs on private and public repos; admin:repo_hook: install the CI webhook.
+const GITHUB_SCOPES = "read:user user:email repo admin:repo_hook";
 
 // Redirect to GitHub for login
 function redirectGithub(req, res) {
@@ -14,7 +17,7 @@ function redirectGithub(req, res) {
     return res.status(500).send("GitHub Client ID is not configured on the server.");
   }
   const redirectUri = `${env.backendUrl.replace(/\/$/, "")}/auth/github/callback`;
-  const githubAuthUrl = `${GITHUB_OAUTH_URL}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user user:email`;
+  const githubAuthUrl = `${GITHUB_OAUTH_URL}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(GITHUB_SCOPES)}`;
   res.redirect(githubAuthUrl);
 }
 
@@ -48,6 +51,9 @@ async function handleGithubCallback(req, res) {
     });
 
     const githubUser = userResponse.data;
+    if (!isUserAllowed(githubUser.login)) {
+      return res.redirect(`${env.frontendUrl.replace(/\/$/, "")}/login?error=not_allowed`);
+    }
 
     // 3. Upsert User in DB
     let user = await User.findOne({ githubId: String(githubUser.id) });
@@ -61,14 +67,14 @@ async function handleGithubCallback(req, res) {
       user.username = githubUser.login;
       user.avatarUrl = githubUser.avatar_url;
     }
-    user.accessToken = accessToken;
+    user.accessToken = encryptSecret(accessToken);
+    user.tokenScopes = userResponse.headers["x-oauth-scopes"] || "";
     await user.save();
 
     // 4. Issue JWT
-    const jwtSecret = env.jwtSecret || "default_super_secret_key";
     const token = jwt.sign(
       { id: user._id, username: user.username, avatarUrl: user.avatarUrl },
-      jwtSecret,
+      env.jwtSecret,
       { expiresIn: "7d" }
     );
 
@@ -81,60 +87,36 @@ async function handleGithubCallback(req, res) {
 }
 
 // Handle Firebase GitHub authentication payload from client
+// The client sends the GitHub OAuth access token obtained via Firebase; we ask GitHub who it belongs to.
+// Nothing the browser claims about identity (username, id) is trusted.
 async function handleFirebaseGithubAuth(req, res) {
-  const { firebaseUid, githubId, username, avatarUrl, accessToken } = req.body;
-
-  if (!githubId && !firebaseUid) {
-    return res.status(400).json({ error: "Missing required user identification (githubId or firebaseUid)" });
+  const { accessToken, firebaseUid } = req.body || {};
+  if (!accessToken) {
+    return res.status(400).json({ message: "Missing GitHub access token" });
   }
-
   try {
-    let query = {};
-    if (githubId) {
-      query = { githubId: String(githubId) };
-    } else {
-      query = { firebaseUid: String(firebaseUid) };
+    const ghRes = await axios.get(GITHUB_USER_URL, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const gh = ghRes.data;
+    if (!isUserAllowed(gh.login)) {
+      return res.status(403).json({ message: `GitHub user ${gh.login} is not allowed to use this workspace` });
     }
-
-    let user = await User.findOne(query);
-
-    if (!user) {
-      user = new User({
-        firebaseUid: firebaseUid || undefined,
-        githubId: githubId ? String(githubId) : `fb-${firebaseUid}`,
-        username: username || `user-${Date.now().toString().slice(-4)}`,
-        avatarUrl: avatarUrl || "",
-        accessToken: accessToken || "",
-      });
-    } else {
-      if (firebaseUid) user.firebaseUid = firebaseUid;
-      if (username) user.username = username;
-      if (avatarUrl) user.avatarUrl = avatarUrl;
-      if (accessToken) user.accessToken = accessToken;
-    }
-
+    let user = await User.findOne({ githubId: String(gh.id) });
+    if (!user) user = new User({ githubId: String(gh.id), username: gh.login });
+    user.username = gh.login;
+    user.avatarUrl = gh.avatar_url;
+    if (firebaseUid) user.firebaseUid = firebaseUid;
+    user.accessToken = encryptSecret(accessToken);
+    user.tokenScopes = ghRes.headers["x-oauth-scopes"] || "";
     await user.save();
 
-    const jwtSecret = env.jwtSecret || "default_super_secret_key";
-    const token = jwt.sign(
-      { id: user._id, username: user.username, avatarUrl: user.avatarUrl, firebaseUid: user.firebaseUid },
-      jwtSecret,
-      { expiresIn: "7d" }
-    );
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        avatarUrl: user.avatarUrl,
-        firebaseUid: user.firebaseUid,
-      },
-    });
+    const token = jwt.sign({ id: user._id, username: user.username, avatarUrl: user.avatarUrl }, env.jwtSecret, { expiresIn: "7d" });
+    res.json({ success: true, token, user: { id: user._id, username: user.username, avatarUrl: user.avatarUrl } });
   } catch (error) {
-    console.error("Firebase GitHub Auth Error:", error);
-    res.status(500).json({ error: "Authentication failed", message: error.message });
+    const status = error.response?.status === 401 ? 401 : 500;
+    console.error("Firebase GitHub Auth Error:", error.message);
+    res.status(status).json({ message: status === 401 ? "GitHub rejected the access token" : "Authentication failed" });
   }
 }
 

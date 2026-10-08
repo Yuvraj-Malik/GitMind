@@ -9,12 +9,12 @@ async function listRepoCommits(repositoryId) {
   return repo?.commits || [];
 }
 
-async function upsertPullRequestStatus(number, status) {
-  if (!number) return null;
+async function upsertPullRequestStatus(number, status, repositoryId) {
+  if (!number || !repositoryId) return null;
   return PullRequest.findOneAndUpdate(
-    { number },
-    { number, status, updatedAt: new Date() },
-    { upsert: true, new: true }
+    { repositoryId, number },
+    { repositoryId, number, status, updatedAt: new Date() },
+    { upsert: true, returnDocument: "after" }
   );
 }
 
@@ -32,10 +32,16 @@ async function listBranches(repositoryId) {
     if (Array.isArray(repository.branches) && repository.branches.length > 0) {
       return repository.branches.map((b) => ({
         name: typeof b === "string" ? b : b.name,
-        commitCount: b.commitCount || 1,
-        updatedAt: b.updatedAt || repository.updatedAt || new Date().toISOString(),
+        isDefault: Boolean(b.isDefault),
+        protected: Boolean(b.protected),
+        aheadBy: b.aheadBy ?? null,
+        commitCount: b.commitCount ?? null,
+        lastAuthor: b.lastAuthor || null,
+        commitSha: b.commitSha || null,
+        updatedAt: b.updatedAt || null,
         repositoryId: String(repository._id),
         repositoryName: repository.name,
+        repositoryOwner: repository.owner,
       }));
     }
 
@@ -58,17 +64,20 @@ async function listBranches(repositoryId) {
   });
 }
 
-async function listActivity() {
+async function listActivity(repositoryIds) {
+  const prFilter = repositoryIds ? { repositoryId: { $in: repositoryIds } } : {};
+  const logFilter = repositoryIds ? { $or: [{ repositoryId: { $in: repositoryIds } }, { repoName: "sandbox" }] } : {};
   const [pullRequests, logs] = await Promise.all([
-    PullRequest.find().sort({ updatedAt: -1 }).limit(50).lean(),
-    AILog.find().sort({ updatedAt: -1, createdAt: -1 }).limit(50).lean(),
+    PullRequest.find(prFilter).sort({ updatedAt: -1 }).limit(50).lean(),
+    AILog.find(logFilter).sort({ updatedAt: -1, createdAt: -1 }).limit(50).lean(),
   ]);
 
   return [
     ...pullRequests.map((pr) => ({
       id: `pr-${pr._id}`,
       type: "pull_request",
-      title: `Pull request #${pr.number} ${pr.status || "updated"}`,
+      title: `PR #${pr.number} ${pr.status || "updated"}${pr.title ? `: ${pr.title}` : ""}`,
+      link: pr.url,
       status: pr.status,
       createdAt: pr.updatedAt || pr.createdAt,
       repositoryId: pr.repositoryId ? String(pr.repositoryId) : null,
@@ -76,20 +85,21 @@ async function listActivity() {
     ...logs.map((log) => ({
       id: `ai-${log._id}`,
       type: "ai",
-      title: log.action || "AI job updated",
+      title: `${log.action || "AI fix"}${log.filePath ? ` · ${log.filePath}` : ""}`,
       status: log.status,
       detail: log.reasoning,
+      link: log.prUrl || null,
       createdAt: log.updatedAt || log.createdAt,
     })),
   ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-async function listAiLogs() {
-  return AILog.find().sort({ updatedAt: -1, createdAt: -1 }).limit(100).lean();
+async function listAiLogs(filter = {}) {
+  return AILog.find(filter).sort({ updatedAt: -1, createdAt: -1 }).limit(100).lean();
 }
 
-async function createAiLog({ jobId, action, reasoning, status }) {
-  return AILog.create({ jobId, action, reasoning, status });
+async function createAiLog(fields) {
+  return AILog.create(fields);
 }
 
 module.exports = {

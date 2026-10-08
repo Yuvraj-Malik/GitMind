@@ -4,13 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm test -w backend && npm test -w ai-worker",
     "dev": "npm run dev -w frontend",
     "dev:backend": "npm run dev -w backend",
     "start:backend": "npm start -w backend",
     "seed": "node seed.js",
     "dev:worker": "npm run dev -w ai-worker",
-    "install:all": "npm install --workspaces"
+    "install:all": "npm install --workspaces",
+    "start:worker": "npm start -w ai-worker",
+    "benchmark": "node ai-worker/scripts/benchmark.js 3",
+    "services:up": "docker compose up -d mongodb redis"
   },
   "keywords": [],
   "author": "",

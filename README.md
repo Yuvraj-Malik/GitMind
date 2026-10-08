@@ -131,3 +131,70 @@ Cross-package constants and utility helpers.
 3. Run frontend: `npm run dev -w frontend`
 4. Run backend: `npm run dev -w backend`
 5. Run worker: `npm run dev -w ai-worker`
+
+---
+
+## 🚦 Running the full pipeline (Oct 2026 update)
+
+The fixer no longer runs inside the HTTP request. The backend **enqueues** a BullMQ job; a **separate `ai-worker` process** consumes it, and progress flows back over Redis pub/sub → Socket.io → dashboard.
+
+```
+GitHub check_run (failure) ──► POST /webhooks/github  (HMAC verified, secret mandatory)
+Dashboard / curl ────────────► POST /repos/:id/trigger-fix  (JWT + rate limited)
+                                   │  202 { jobId }
+                                   ▼
+                          BullMQ "git-mind-jobs"  (jobId = repo+sha → dedupe 24h)
+                                   ▼
+                          ai-worker: clone/fetch → run tests → Gemini → patch
+                                   → re-run tests → commit → push → open PR (never merges)
+                                   │  Redis "gitmind:events"
+                                   ▼
+                          backend → Socket.io → AI_FIX_STARTED / AI_FIX_COMPLETED / AI_FIX_FAILED / NEW_PR_CREATED
+```
+
+### Start everything (4 terminals, from `code/`)
+
+```bash
+npm run services:up        # Mongo + Redis via Docker
+npm run dev:backend        # API + webhooks + sockets on :4000
+npm run start:worker       # the fixer (separate process)
+npm run dev                # frontend on :5173
+```
+
+### Manual trigger (sandbox mode)
+
+```bash
+curl -X POST http://localhost:4000/repos/any/trigger-fix \
+  -H "Authorization: Bearer <JWT from login>" -H "Content-Type: application/json" \
+  -d '{"filePath":"bugs/02-off-by-one.js"}'
+# → 202 {"jobId":"12","statusUrl":"/jobs/12"}
+curl -H "Authorization: Bearer <JWT>" http://localhost:4000/jobs/12
+```
+
+### Webhook (automatic) mode
+
+1. Expose the backend: `ngrok http 4000` (or deploy).
+2. Sandbox repo → Settings → Webhooks → Payload URL `https://<ngrok-id>.ngrok-free.app/webhooks/github`, content type `application/json`, secret = `GITHUB_WEBHOOK_SECRET`, events: **Check runs** + **Pull requests**.
+3. Copy `docs/sandbox-repo/*` into the sandbox repo so CI produces check runs.
+
+### Guarantees enforced in code
+
+| Guard | Where |
+|---|---|
+| Webhook rejected when secret unset or signature wrong | `backend/src/webhooks/githubReceiver.js` |
+| `ai/fix-*` branches never re-trigger the fixer | `shared/src/fixGuards.js`, `eventRouter.decideCheckRun` |
+| One job per repo+commit (duplicate deliveries deduped) | `queueService.createWebhookFixJob` |
+| Only `ALLOWED_REPOS` are acted on | `eventRouter.decideCheckRun` |
+| No JWT fallback secret; login allowlist; auth + rate limit on mutating routes | `config/env.js`, `middleware/auth.js` |
+| Model may only edit the offered files, never test files | `githubOps.validatePatchFiles` |
+| Error logs fenced as untrusted data (prompt-injection defence) | `fixerAgent.sanitizeUntrusted` |
+| Secrets stripped from the env of the target repo's test/install commands | `tools/shell.js` |
+| Nothing committed unless the project's tests pass; failed attempts rolled back | `githubOps.createFixBranchAndCommit` |
+| Expired/invalid token detected before the LLM is called | `githubOps.preflightGithub` |
+
+### Tests & benchmark
+
+```bash
+npm test              # backend (8) + ai-worker (10) unit/integration tests, no network
+npm run benchmark     # 8 fixture bugs × 3 runs against Gemini, no push → ai-worker/scripts/benchmark-results.md
+```

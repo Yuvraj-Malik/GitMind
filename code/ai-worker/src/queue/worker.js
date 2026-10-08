@@ -1,34 +1,51 @@
+require("../config");
 const { Worker } = require("bullmq");
 const IORedis = require("ioredis");
-const { runFixerAgent } = require("../agents/fixerAgent");
-const { runRagAgent } = require("../agents/ragAgent");
+const { QUEUE_NAME } = require("shared");
+const { processFixJob } = require("../jobs/fixJob");
+const { ensureDb } = require("../services/db");
+const { closePublisher } = require("../services/events");
 
 const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
   maxRetriesPerRequest: null,
 });
+connection.on("error", (err) => console.warn("[ai-worker] redis warning:", err.message));
 
 const worker = new Worker(
-  "git-mind-jobs",
+  QUEUE_NAME,
   async (job) => {
-    if (job.name === "fix-code") {
-      return runFixerAgent(job.data);
-    }
-
+    console.log(`[ai-worker] picked up job ${job.id} (${job.name})`);
+    if (job.name === "fix-code") return processFixJob(job);
     if (job.name === "rag-query") {
+      const { runRagAgent } = require("../agents/ragAgent");
       return runRagAgent(job.data);
     }
-
     return { skipped: true };
   },
-  { connection }
+  {
+    connection,
+    // One fix at a time: jobs share git working trees.
+    concurrency: 1,
+    lockDuration: 10 * 60 * 1000,
+  }
 );
 
-worker.on("completed", (job) => {
-  console.log(`[ai-worker] job completed: ${job.id} (${job.name})`);
+worker.on("completed", (job, result) => {
+  console.log(`[ai-worker] job ${job.id} done: ok=${result?.ok} ${result?.prUrl || result?.failed_at || ""}`);
 });
-
 worker.on("failed", (job, error) => {
-  console.error(`[ai-worker] job failed: ${job?.id}`, error);
+  console.error(`[ai-worker] job ${job?.id} crashed:`, error.message);
 });
 
-console.log("[ai-worker] listening for jobs on queue git-mind-jobs");
+ensureDb().catch(() => {});
+console.log(`[ai-worker] listening for jobs on queue ${QUEUE_NAME}`);
+
+async function shutdown() {
+  console.log("[ai-worker] shutting down...");
+  await worker.close();
+  await closePublisher();
+  await connection.quit().catch(() => {});
+  process.exit(0);
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

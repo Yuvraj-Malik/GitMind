@@ -1,0 +1,4 @@
+{
+  "testCommand": "node run-tests.js",
+  "installCommand": "node -e \"0\""
+}

@@ -31,3 +31,14 @@ services:
         sync: false
       - key: GITHUB_TOKEN
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PUBLIC_WEBHOOK_URL
+        sync: false
+      - key: RUN_WORKER_IN_PROCESS
+        value: "true"
+      - key: ALLOWED_GITHUB_USERS
+        sync: false
+      - key: ALLOWED_REPOS
+        sync: false
+

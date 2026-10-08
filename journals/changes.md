@@ -20,3 +20,12 @@
 ## Frontend Dashboard
 - **Data Mapping Fixes**: Updated `appStore.js` to correctly map raw database fields from the backend's `AILog` and `PullRequest` endpoints into the properties expected by the React UI components.
 - **Live Metrics Adjustments**: Refactored `LiveMetrics.jsx`. Removed dynamic rendering of fabricated metrics (Build Time, Tests, Security) that weren't actually stored in the DB schema, hardcoding them to "N/A" to maintain an honest UI state.
+
+## Oct 8, 2026 — Automation, security, real-repo support
+- **Queue**: `trigger-fix` now enqueues a BullMQ job and returns 202; `ai-worker` runs as its own process (`npm run start:worker`). Backend no longer imports `ai-worker` (dependency removed).
+- **Live updates**: worker publishes to Redis `gitmind:events`; backend relays to Socket.io; dashboard reloads on `AI_FIX_COMPLETED`/`AI_FIX_FAILED` and syncs GitHub on `NEW_PR_CREATED`.
+- **Webhook**: secret mandatory, `ping` handled, only completed+failed `check_run` on `ALLOWED_REPOS`, self-trigger guard for `ai/fix-*`, dedupe by repo+head SHA.
+- **Real repos**: worker clones/fetches the target repo at the failing SHA, installs deps, runs the real test command (`FIX_TEST_COMMAND` or `.gitmind.json`), locates files from stack traces + local imports, verifies with the same command, and opens the PR into the failing branch. Base branch configurable (`BASE_BRANCH`). Multi-file patches supported.
+- **Fixer quality**: failing tests sent as read-only context (fixes 08-stateful: the model now sees `reset()`), untrusted-output fencing, patches touching tests or un-offered files rejected, no-op patches rejected, failure stage tracked explicitly (fixes the `failed_at` misclassification / possible TypeError), raw test output persisted in `AILog.errorLog`, one AILog per job (queued → running → success/failed/skipped).
+- **Security**: removed `default_super_secret_key` fallback (startup fails without JWT_SECRET), `ALLOWED_GITHUB_USERS` login allowlist, auth + rate limiting on trigger-fix, sync, merge, branch delete, chat. Safety guard now an explicit allowlist (fixture repo, `TEST_REPO_PATH`, worker workspaces) instead of a substring match. Secrets stripped from the env of repo test commands.
+- **Tests**: `node --test` suites for backend (signature, guards, auth, rate limit) and ai-worker (extraction, injection, patch validation, real local-git retry/rollback). `scripts/benchmark.js` runs N runs/bug without pushing.

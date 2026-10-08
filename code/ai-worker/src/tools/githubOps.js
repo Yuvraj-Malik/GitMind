@@ -1,142 +1,190 @@
-const simpleGit = require("simple-git");
+const _sg = require("simple-git");
+const simpleGit = _sg.simpleGit || _sg.default || _sg; // v3 and v4 export shapes
 const path = require("path");
 const fs = require("fs");
-const { execSync } = require("child_process");
 const { Octokit } = require("@octokit/rest");
+const { isTestFile, AI_FIX_BRANCH_PREFIX } = require("shared");
+const config = require("../config");
+const { scrubToken, tail } = require("./shell");
 
-async function createFixBranchAndCommit({ prNumber, patchProposal }) {
-  const defaultTestRepo = path.resolve(__dirname, '../../scripts/test-repo');
-  const targetRepo = process.env.TEST_REPO_PATH || defaultTestRepo;
-  
-  // Guard 1: Must strictly be within the local test repo OR the designated sandbox
-  const isLocalTestRepo = targetRepo === defaultTestRepo || targetRepo.startsWith(defaultTestRepo + path.sep);
-  const isSandbox = targetRepo.includes('git-mind-test-sandbox');
-  if (!isLocalTestRepo && !isSandbox) {
-    throw new Error(`SAFETY GUARD: Refusing to run git ops outside of test-repo or sandbox. Target was: ${targetRepo}`);
+/** Error carrying the pipeline stage it failed in and whether the fixer may retry. */
+class FixerError extends Error {
+  constructor(stage, message, { retryable = false } = {}) {
+    super(message);
+    this.stage = stage;
+    this.retryable = retryable;
   }
-
-  const git = simpleGit(targetRepo);
-  
-  const isRepo = await git.checkIsRepo();
-  if (!isRepo) {
-    await git.init();
-    await git.add('.');
-    await git.commit('Initial commit for test repo');
-  }
-
-  // Branch state bug: checkout base branch first (assuming master or main)
-  try {
-    await git.checkout('main');
-  } catch (e) {
-    try {
-      await git.checkout('master');
-    } catch (e2) {
-      // If neither exists, just stay on current branch (might be initial commit)
-    }
-  }
-
-  const branch = `ai/fix-pr-${prNumber || 'unknown'}-${Date.now()}`;
-  
-  await git.checkoutLocalBranch(branch);
-  
-  const filesWritten = [];
-  const filesToRevert = [];
-
-  try {
-    // Apply patch
-    const filesToPatch = (patchProposal && patchProposal.filepath && patchProposal.content) 
-      ? [patchProposal] 
-      : (patchProposal && patchProposal.files) ? patchProposal.files : [];
-
-    for (const file of filesToPatch) {
-      const fullPath = path.resolve(targetRepo, file.filepath);
-      // Path traversal guard
-      if (!fullPath.startsWith(targetRepo + path.sep)) {
-         throw new Error(`SAFETY GUARD: Path traversal detected: ${fullPath}`);
-      }
-      
-      const originalContent = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf8') : null;
-      filesToRevert.push({ path: fullPath, content: originalContent });
-      
-      fs.writeFileSync(fullPath, file.content);
-      filesWritten.push(fullPath);
-    }
-
-    // Verify before commit
-    let atLeastOneTestRun = false;
-    for (const file of filesToPatch) {
-      if (!file.filepath.endsWith('.js')) {
-        continue;
-      }
-      
-      const testFile = file.filepath.replace('.js', '.test.js');
-      const testFilePath = path.resolve(targetRepo, testFile);
-      if (fs.existsSync(testFilePath)) {
-        atLeastOneTestRun = true;
-        try {
-          execSync(`node "${testFilePath}"`, { stdio: 'pipe' });
-        } catch (e) {
-          const errMsg = (e.stdout ? e.stdout.toString() : '') + (e.stderr ? e.stderr.toString() : '') + e.message;
-          throw new Error(`Verification failed on ${testFile}:\n${errMsg}`);
-        }
-      }
-    }
-    
-    // If no test files existed at all, we might want to flag this, but for now we just proceed.
-    
-    // Stage and commit
-    for (const file of filesToPatch) {
-      await git.add(file.filepath);
-    }
-    await git.commit(patchProposal.summary || `chore(ai-fix): automated fix for PR #${prNumber || 'unknown'}`);
-
-  } catch (e) {
-    // Revert files and throw
-    for (const revert of filesToRevert) {
-      if (revert.content !== null) {
-        fs.writeFileSync(revert.path, revert.content);
-      } else {
-        if (fs.existsSync(revert.path)) fs.unlinkSync(revert.path);
-      }
-    }
-    try { await git.checkout('main'); } catch(err) { try { await git.checkout('master'); } catch(err2){} }
-    throw e; 
-  }
-  
-  let pushSuccess = false;
-  let prUrl = null;
-
-  try {
-    const remotes = await git.getRemotes();
-    if (remotes.length > 0) {
-      if (!process.env.GITHUB_TOKEN || !process.env.GITHUB_REPO_OWNER || !process.env.GITHUB_REPO_NAME) {
-         throw new Error('PR_CONFIG_MISSING: GitHub PR credentials not configured');
-      }
-
-      const pushUrl = `https://${process.env.GITHUB_TOKEN}@github.com/${process.env.GITHUB_REPO_OWNER}/${process.env.GITHUB_REPO_NAME}.git`;
-      await git.push(pushUrl, branch);
-      pushSuccess = true;
-      
-      // PR Creation
-      const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-      const prResponse = await octokit.rest.pulls.create({
-        owner: process.env.GITHUB_REPO_OWNER,
-        repo: process.env.GITHUB_REPO_NAME,
-        title: patchProposal.summary || `Automated fix for PR #${prNumber}`,
-        head: `${process.env.GITHUB_REPO_OWNER}:${branch}`,
-        base: 'main',
-        body: `Automated fix generated by AI Worker.`
-      });
-      prUrl = prResponse.data.html_url;
-    }
-  } catch (err) {
-    if (err.message.includes('PR_CONFIG_MISSING')) {
-      throw err;
-    }
-    throw new Error(`Push or PR creation failed: ${err.message}`);
-  }
-
-  return { branch, pushSuccess, prUrl, patchProposal };
 }
 
-module.exports = { createFixBranchAndCommit };
+function isWithin(root, target) {
+  const rel = path.relative(path.resolve(root), path.resolve(target));
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/** Git ops are only allowed inside the fixture repo, TEST_REPO_PATH, or the worker's clone dir. */
+function assertAllowedRepoDir(repoDir) {
+  const roots = [config.FIXTURE_REPO, config.workspacesDir];
+  if (process.env.TEST_REPO_PATH) roots.push(path.resolve(process.env.TEST_REPO_PATH));
+  if (!roots.some((r) => isWithin(r, repoDir))) {
+    throw new FixerError("safety_guard", `SAFETY GUARD: refusing git ops outside allowed repos. Target was: ${repoDir}`);
+  }
+}
+
+/**
+ * Validates the model's proposed files before anything touches disk.
+ * - only files we offered as editable may change (blocks prompt-injected writes elsewhere)
+ * - test files may never change (the scoped "gamed patch" check)
+ */
+function validatePatchFiles(patchFiles, allowedFiles) {
+  const allowed = new Set((allowedFiles || []).map((f) => f.replace(/\\/g, "/")));
+  for (const f of patchFiles) {
+    const p = f.filepath.replace(/\\/g, "/");
+    if (isTestFile(p)) {
+      throw new FixerError("verification", `Rejected patch: it modifies test file ${p}. Fix the source code, never the tests.`, { retryable: true });
+    }
+    if (allowed.size > 0 && !allowed.has(p)) {
+      throw new FixerError("verification", `Rejected patch: ${p} is not one of the files you may modify (${[...allowed].join(", ")}).`, { retryable: true });
+    }
+  }
+}
+
+async function checkoutBase(git, baseRef) {
+  try {
+    await git.checkout(baseRef);
+  } catch (e) {
+    if (baseRef === "main") await git.checkout("master");
+    else throw e;
+  }
+}
+
+/** Fails fast with a clear message when the token is missing/expired, before the LLM is even called. */
+async function preflightGithub({ owner, repo, token = process.env.GITHUB_TOKEN }) {
+  if (!token || !owner || !repo) {
+    throw new FixerError("pr_config_missing", "PR_CONFIG_MISSING: GITHUB_TOKEN, owner or repo not configured");
+  }
+  const octokit = new Octokit({ auth: token });
+  try {
+    await octokit.rest.repos.get({ owner, repo });
+  } catch (err) {
+    const hint = err.status === 401 ? " (token expired or revoked: regenerate GITHUB_TOKEN)" : err.status === 404 ? " (token lacks access to this repo)" : "";
+    throw new FixerError("github_auth", `GitHub preflight failed: ${err.status || ""} ${err.message}${hint}`);
+  }
+}
+
+/**
+ * Apply patch on a fresh ai/fix-* branch, verify, commit, push, open PR.
+ * Nothing is committed unless verify() passes; on any failure the working tree is restored.
+ */
+async function createFixBranchAndCommit({
+  prNumber,
+  patchProposal,
+  repoDir = config.sandboxRepo,
+  baseRef = config.baseBranch,
+  prBase = config.baseBranch,
+  owner = process.env.GITHUB_REPO_OWNER,
+  repo = process.env.GITHUB_REPO_NAME,
+  allowedFiles,
+  verify,
+  push = true,
+  token = process.env.GITHUB_TOKEN,
+}) {
+  repoDir = path.resolve(repoDir);
+  assertAllowedRepoDir(repoDir);
+  if (typeof verify !== "function") throw new FixerError("validation", "verify() function is required");
+
+  const filesToPatch = patchProposal?.files || [];
+  if (filesToPatch.length === 0) throw new FixerError("llm_generation", "Patch contains no files", { retryable: true });
+  validatePatchFiles(filesToPatch, allowedFiles);
+
+  const git = simpleGit(repoDir);
+  if (!(await git.checkIsRepo())) {
+    throw new FixerError("validation", `${repoDir} is not a git repository`);
+  }
+  await checkoutBase(git, baseRef);
+
+  const branch = `${AI_FIX_BRANCH_PREFIX}pr-${prNumber || "manual"}-${Date.now()}`;
+  await git.checkoutLocalBranch(branch);
+
+  const originals = [];
+  let verifyOutput = "";
+  try {
+    for (const file of filesToPatch) {
+      const fullPath = path.resolve(repoDir, file.filepath);
+      if (!isWithin(repoDir, fullPath) || fullPath === repoDir) {
+        throw new FixerError("safety_guard", `SAFETY GUARD: Path traversal detected: ${file.filepath}`);
+      }
+      originals.push({ path: fullPath, content: fs.existsSync(fullPath) ? fs.readFileSync(fullPath, "utf8") : null });
+      let content = file.content;
+      if (!content.endsWith("\n")) content += "\n";
+      fs.writeFileSync(fullPath, content);
+    }
+
+    const diff = await git.diff(["--stat"]);
+    if (!diff.trim()) {
+      throw new FixerError("verification", "Patch made no changes to the files.", { retryable: true });
+    }
+
+    const result = await verify(repoDir);
+    verifyOutput = result.output || "";
+    if (!result.ok) {
+      throw new FixerError("verification", `Verification failed:\n${tail(verifyOutput, 2500)}`, { retryable: true });
+    }
+
+    for (const file of filesToPatch) await git.add(file.filepath);
+    await git.commit(`fix: ${patchProposal.summary || `automated fix for PR #${prNumber || "manual"}`}`.slice(0, 200));
+  } catch (e) {
+    for (const o of originals) {
+      if (o.content !== null) fs.writeFileSync(o.path, o.content);
+      else if (fs.existsSync(o.path)) fs.unlinkSync(o.path);
+    }
+    try {
+      await checkoutBase(git, baseRef);
+      await git.deleteLocalBranch(branch, true);
+    } catch (_) { /* best effort */ }
+    if (e instanceof FixerError) throw e;
+    throw new FixerError("verification", e.message, { retryable: true });
+  }
+
+  if (!push) {
+    await checkoutBase(git, baseRef);
+    return { branch, pushSuccess: false, prUrl: null, patchProposal };
+  }
+
+  if (!token || !owner || !repo) {
+    throw new FixerError("pr_config_missing", "PR_CONFIG_MISSING: GitHub PR credentials not configured");
+  }
+
+  let pushSuccess = false;
+  try {
+    const pushUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
+    await git.push(pushUrl, `${branch}:refs/heads/${branch}`);
+    pushSuccess = true;
+
+    const octokit = new Octokit({ auth: token });
+    const body = [
+      `**Automated fix proposed by Git-Mind.** A human must review before merging; Git-Mind never merges.`,
+      "",
+      `**Summary:** ${patchProposal.summary || "n/a"}`,
+      prNumber ? `**Fixes failing checks on:** #${prNumber}` : "",
+      `**Files changed:** ${filesToPatch.map((f) => "`" + f.filepath + "`").join(", ")}`,
+      "",
+      "<details><summary>Verification output (passing)</summary>\n\n```\n" + tail(verifyOutput, 3000) + "\n```\n</details>",
+    ].filter(Boolean).join("\n");
+
+    const pr = await octokit.rest.pulls.create({
+      owner,
+      repo,
+      title: `[Git-Mind] ${patchProposal.summary || `Automated fix for PR #${prNumber}`}`.slice(0, 250),
+      head: branch,
+      base: prBase,
+      body,
+    });
+    return { branch, pushSuccess, prUrl: pr.data.html_url, prNumberCreated: pr.data.number, patchProposal };
+  } catch (err) {
+    throw new FixerError("pr_creation", `Push or PR creation failed (pushed=${pushSuccess}): ${scrubToken(err.message)}`);
+  } finally {
+    try { await checkoutBase(git, baseRef); } catch (_) { /* ignore */ }
+  }
+}
+
+module.exports = { createFixBranchAndCommit, preflightGithub, validatePatchFiles, assertAllowedRepoDir, FixerError };
