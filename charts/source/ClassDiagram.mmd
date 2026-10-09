@@ -1,0 +1,200 @@
+---
+title: Git-Mind — UML Class Diagram
+---
+classDiagram
+direction TB
+
+namespace DomainModel {
+  class User {
+    +ObjectId _id
+    +String githubId
+    +String username
+    +String avatarUrl
+    -String accessToken «AES-256-GCM»
+    +String tokenScopes
+    +Date createdAt
+  }
+  class Repository {
+    +ObjectId _id
+    +String owner
+    +String name
+    +String fullName
+    +Number githubId
+    +Boolean private
+    +String defaultBranch
+    +ObjectId connectedBy
+    +Number webhookId
+    +String webhookStatus
+    +Date lastSyncedAt
+    +Branch[] branches
+    +Commit[] commits
+  }
+  class Branch {
+    <<embedded>>
+    +String name
+    +String commitSha
+    +Boolean isDefault
+    +Number aheadBy
+    +String lastAuthor
+    +Date updatedAt
+  }
+  class Commit {
+    <<embedded>>
+    +String sha
+    +String title
+    +String author
+    +String url
+    +Date createdAt
+  }
+  class PullRequest {
+    +ObjectId repositoryId
+    +Number number
+    +String title
+    +PRStatus status
+    +String branch
+    +String baseBranch
+    +String author
+    +String url
+  }
+  class AILog {
+    +String jobId
+    +ObjectId repositoryId
+    +Trigger trigger
+    +RunStatus status
+    +String filePath
+    +String headSha
+    +String branch
+    +String prUrl
+    +String reasoning
+    +FailStage failedAt
+    +Number attempt
+    +String errorLog
+    +Number durationMs
+  }
+  class Notification {
+    +ObjectId userId
+    +String type
+    +String title
+    +String body
+    +String link
+    +Boolean read
+  }
+  class RunStatus {
+    <<enumeration>>
+    QUEUED
+    RUNNING
+    SUCCESS
+    FAILED
+    SKIPPED
+  }
+  class FailStage {
+    <<enumeration>>
+    VALIDATION
+    LLM_GENERATION
+    LLM_RATE_LIMITED
+    VERIFICATION
+    SAFETY_GUARD
+    GITHUB_AUTH
+    PR_CREATION
+  }
+}
+
+namespace BackendServices {
+  class GitHubService {
+    +listUserGithubRepos(userId) RepoInfo[]
+    +connectRepository(userId, fullName) Repository
+    +disconnectRepository(repo) void
+    +syncRepository(repo) SyncResult
+    +mergePullRequest(repo, number) MergeResult
+    +deleteBranch(repo, name) void
+    +ensureWebhook(repo, octokit) Repository
+  }
+  class QueueService {
+    +createWebhookFixJob(payload) Job
+    +createManualFixJob(payload) Job
+    +getJobStatus(jobId) JobStatus
+  }
+  class WebhookRouter {
+    +verifyGithubSignature(req) boolean
+    +decideCheckRun(payload, allowed) Decision
+    +routeGithubEvent(req, res) void
+  }
+  class NotificationService {
+    +notify(userId, type, title, body, link) Notification
+    +listNotifications(userId) Notification[]
+    +markRead(userId, ids) void
+    +ownerOf(event) userId
+  }
+  class SocketGateway {
+    +initSocket(io) void
+    +emitToUser(userId, event, payload) void
+  }
+}
+
+namespace AIWorker {
+  class FixJob {
+    +processFixJob(job) FixResult
+    -buildManualContext(data) FixContext
+    -buildWebhookContext(data) FixContext
+    -resolveToken(data) String
+  }
+  class FixContext {
+    +String repoDir
+    +String errorLog
+    +SourceFile[] files
+    +SourceFile[] contextFiles
+    +verify(dir) TestResult
+  }
+  class FixerAgent {
+    -LLM llm
+    +runFixerAgent(payload) FixResult
+    -buildPrompt(files, context, error) String
+    -extractPatch(text) PatchProposal
+    -sanitizeUntrusted(text) String
+  }
+  class GitOps {
+    +createFixBranchAndCommit(patch, repo, verify) PRResult
+    +preflightGithub(owner, repo, token) void
+    -validatePatchFiles(files, allowed) void
+    -assertAllowedRepoDir(dir) void
+  }
+  class RepoWorkspace {
+    +prepareWorkspace(fullName, sha, token) String
+    +installDependencies(dir) CommandResult
+    +selectFiles(dir, output) FileSelection
+  }
+  class FixerError {
+    +FailStage stage
+    +Boolean retryable
+  }
+  class PatchProposal {
+    +String summary
+    +SourceFile[] files
+  }
+}
+
+User "1" --> "0..*" Repository : connects
+User "1" --> "0..*" Notification : receives
+Repository "1" *-- "0..*" Branch
+Repository "1" *-- "0..*" Commit
+Repository "1" --> "0..*" PullRequest : has
+Repository "1" --> "0..*" AILog : fix runs
+AILog ..> RunStatus
+AILog ..> FailStage
+
+GitHubService ..> Repository : syncs
+GitHubService ..> PullRequest : upserts
+GitHubService ..> User : decrypts token
+WebhookRouter ..> QueueService : enqueues
+NotificationService ..> Notification : creates
+NotificationService ..> SocketGateway : pushes
+
+FixJob ..> RepoWorkspace : uses
+FixJob ..> FixerAgent : uses
+FixJob ..> AILog : writes
+FixJob ..> FixContext : builds
+FixerAgent ..> GitOps : applies patch via
+FixerAgent ..> PatchProposal : produces
+GitOps ..> FixerError : throws
+FixerError ..> FailStage
+QueueService ..> FixJob : «BullMQ job»
