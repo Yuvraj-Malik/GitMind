@@ -1,4 +1,4 @@
-W,H=1500,1000
+W,H=1200,820
 o=[]
 def e(s): return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
 P={}
@@ -22,10 +22,10 @@ def lib(k,cx,cy,name,sub=None):
     if sub: lbl(cx,y+h+32,sub,11,color="#444",italic=True)
     P[k]=(x,y,w,h)
 def exe(k,cx,cy,name,sub=None):
-    w,h=150,96; x,y=cx-w/2,cy-h/2
-    o.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="#fff" stroke="#000" stroke-width="3.5"/>')
-    for dy in (22,60): o.append(f'<rect x="{x-14}" y="{y+dy-8}" width="30" height="16" fill="#fff" stroke="#000" stroke-width="2.6"/>')
-    lbl(x+w/2+8,y+30,name,15,bold=True)
+    w,h=150,72; x,y=cx-w/2,cy-h/2
+    o.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="#fff" stroke="#000" stroke-width="3"/>')
+    for dy in (20,50): o.append(f'<rect x="{x-14}" y="{y+dy-8}" width="30" height="16" fill="#fff" stroke="#000" stroke-width="2.6"/>')
+    lbl(x+w/2+8,y+h/2+5,name,15,bold=True)
     if sub:
         for i,s in enumerate(sub): lbl(x+w/2+8,y+52+i*16,s,11,color="#333")
     P[k]=(x,y,w,h)
@@ -56,84 +56,37 @@ def side(k,s,f=0.5):
     if s=="B": return (x+w*f,y+h+38)   # below a library's name + subtitle
     return {"l":(x,y+h*f),"r":(x+w,y+h*f),"t":(x+w*f,y),"b":(x+w*f,y+h)}[s]
 
-# ---------------- artifacts ----------------
-page("idx",330,180,"index.html")
-page("login",520,120,"login (route)")
-page("ai",710,180,"ai-fixes (route)")
-lib("app",520,340,"app.js","React SPA bundle")
-exe("srv",820,380,"server.js",["Backend API","Express + Socket.io"])
-exe("wrk",820,720,"worker.js",["AI Worker","fix-job processor"])
-lib("shared",520,560,"shared.js","models · guards · crypto")
-lib("bull",820,555,"bullmq","job queue")
-lib("oct",1100,555,"octokit","GitHub REST client")
-lib("sock",1100,300,"socket.io","live events")
-lib("lc",560,860,"langchain-genai","Gemini LLM client")
-lib("sg",820,880,"simple-git","clone · commit · push")
-file("env",1310,420,".env")
-file("prompt",1080,850,"selfHealingPrompt.txt")
-file("gm",1300,720,".gitmind.json")
-file("readme",1340,170,"README.md",doc=True)
-table("t_users",110,560,"users")
-table("t_repos",270,560,"repositories")
-table("t_prs",110,690,"pullrequests")
-table("t_logs",270,690,"ailogs")
-table("t_notif",190,820,"notifications")
 
-# ---------------- dependencies ----------------
-edge(side("idx","r",0.25),side("login","l",0.45),"«hyperlink»",(410,124))
-edge(side("login","r",0.45),side("ai","l",0.25),"«hyperlink»",(632,124))
-for k in ("idx","login","ai"): pass
-edge(side("idx","b"),side("app","l",0.3),via=[(330,320)])
-edge(side("login","b"),side("app","t"))
-edge(side("ai","b"),side("app","r",0.3),via=[(710,320)])
-edge(side("app","r",0.75),side("srv","l",0.55),"dependency",(650,398),red=True)
-lbl(650,412,"HTTPS · WebSocket",11,color="#444")
-edge(side("srv","r",0.25),side("sock","l",0.6))
-edge(side("srv","b",0.5),side("bull","t"),"enqueue",(780,500))
-edge(side("srv","r",0.8),side("oct","t",0.4),via=[(1092,457)])
-edge(side("srv","l",0.85),side("shared","t",0.6),via=[(567,462)])
-edge(side("srv","r",0.55),side("env","l",0.4),via=[(1200,433),(1200,452)])
-edge(side("wrk","t",0.5),side("bull","B"),"consume",(865,668))
-edge(side("wrk","l",0.3),side("shared","B",0.6),via=[(567,697)])
-edge(side("wrk","r",0.3),side("oct","B",0.4),via=[(1092,697)],label="open PR",lp=(1060,716))
-edge(side("wrk","b",0.2),side("lc","r",0.4),via=[(775,820),(640,820)])
-edge(side("wrk","b",0.5),side("sg","t"))
-edge(side("wrk","b",0.85),side("prompt","t"),via=[(872,795),(1080,795)])
-edge(side("wrk","r",0.7),side("gm","l",0.5),via=[(1200,737),(1200,720)])
-edge(side("wrk","r",0.12),side("env","r",0.6),via=[(1410,684),(1410,428)])
-for t_ in ("t_users","t_repos","t_prs","t_logs","t_notif"):
-    pass
-edge(side("shared","l",0.2),side("t_repos","r",0.4))
-edge(side("shared","l",0.45),side("t_users","t",0.6),via=[(140,574),(140,505)]) if False else None
-edge(side("shared","l",0.45),side("t_logs","r",0.4),via=[(400,598),(400,679)])
-lbl(410,520,"«table»",12,italic=True)
-# group bracket for MongoDB tables
-o.append('<rect x="35" y="490" width="320" height="380" rx="8" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="3 3"/>')
-lbl(195,508,"MongoDB Atlas (collections)",13,bold=True)
+page("idx",150,160,"index.html")
+page("dash",380,160,"dashboard.html")
+lib("app",265,370,"app.js")
+exe("srv",640,370,"server.js")
+exe("wrk",640,640,"worker.js")
+lib("shared",380,560,"shared.js")
+lib("bull",890,505,"bullmq")
+lib("oct",1060,370,"octokit")
+lib("lc",900,690,"langchain")
+table("db",150,620,"gitmind_db")
+file("env",1060,160,".env")
 
-# annotation labels (blue, like the slide)
-blue="#1d4ed8"
-def ann(x,y,s,tx,ty):
-    lbl(x,y,s,14,color=blue)
-    sy = y-18 if ty < y else y+6
-    o.append(f'<path d="M{x},{sy} Q{x},{(sy+ty)/2} {tx},{ty}" fill="none" stroke="{blue}" stroke-width="1.4"/><circle cx="{tx}" cy="{ty}" r="4" fill="{blue}"/>')
-ann(250,90,"page",300,150)
-ann(1000,200,"executable",870,333)
-ann(1250,230,"library",1120,280)
-ann(1440,95,"document",1340,150)
-ann(1450,860,"file",1318,742)
-ann(120,950,"table",170,812)
-ann(400,960,"library",528,872)
-# Legend like the slide
-lx,ly=40,140
-lbl(lx,ly,"Components:",18,anchor="start",color="#b33a3a",bold=True)
-for i,s in enumerate(["Executables","Library","Table","File","Document","Page"]): lbl(lx+6,ly+30+i*26,"• "+s,16,anchor="start",color="#b33a3a",bold=True)
-
+edge(side("idx","r",0.3),side("dash","l",0.3),"<<hyperlink>>",(265,132))
+edge(side("idx","b"),side("app","l",0.4),via=[(150,359)])
+edge(side("dash","b"),side("app","r",0.4),via=[(380,359)])
+edge(side("app","r",0.5),side("srv","l",0.5),"dependency",(452,360),red=True)
+edge(side("srv","r",0.5),side("oct","l",0.5))
+edge(side("srv","t",0.7),side("env","l",0.5),via=[(670,160)])
+edge(side("srv","b",0.8),side("bull","l",0.3))
+edge(side("srv","b",0.2),side("shared","t",0.5),via=[(595,460),(380,460)])
+edge(side("wrk","r",0.3),side("bull","l",0.7))
+edge(side("wrk","r",0.15),side("oct","r",0.5),via=[(1150,615),(1150,370)])
+edge(side("wrk","r",0.7),side("lc","l",0.5))
+edge(side("wrk","l",0.5),side("shared","r",0.6))
+edge(side("shared","l",0.5),side("db","r",0.5))
 svg=f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">
 <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10" fill="none" stroke="#000" stroke-width="1.3"/></marker></defs>
 <style>text{{font-family:Arial,Helvetica,sans-serif}}</style>
 <rect width="100%" height="100%" fill="#fff"/>
-<text x="{W/2}" y="40" text-anchor="middle" font-size="26" font-weight="bold">Git-Mind — Component Diagram</text>
+<text x="40" y="44" font-size="20" font-weight="bold">Component Diagram - GitMind</text>
 {chr(10).join(o)}
 </svg>'''
-open("component-diagram.svg","w").write(svg)
+open("component.svg","w").write(svg)
