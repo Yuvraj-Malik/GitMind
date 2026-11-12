@@ -11,6 +11,8 @@ const AILogSchema = new mongoose.Schema(
     repositoryId: { type: mongoose.Schema.Types.ObjectId, ref: "Repository", index: true },
     headSha: String,
     baseBranch: String,
+    headBranch: String,
+    stage: String, // live progress text while running
     prNumber: Number,
     branch: String,
     prUrl: String,

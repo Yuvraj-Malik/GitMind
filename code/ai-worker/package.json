@@ -13,22 +13,17 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
-    "@langchain/anthropic": "^1.5.2",
+    "@langchain/core": "^1.2.4",
     "@langchain/google-genai": "^2.2.0",
-    "@langchain/openai": "^1.5.5",
     "@octokit/rest": "^22.0.1",
     "axios": "^1.19.0",
     "bullmq": "^6.0.2",
     "dotenv": "^17.4.2",
-    "firebase": "13.0.0",
     "ioredis": "^5.11.1",
     "langchain": "^1.5.4",
     "mongoose": "^9.9.0",
-    "openai": "^7.2.0",
     "shared": "*",
-    "simple-git": "^4.0.2",
-    "tree-sitter": "^0.25.1"
+    "simple-git": "^4.0.2"
   },
   "devDependencies": {
     "nodemon": "^1.4.1"

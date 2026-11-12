@@ -85,7 +85,8 @@ const commits = wrap(async (req, res) => {
 
 const pullRequests = wrap(async (req, res) => {
   const repo = await ownedRepo(req);
-  res.json(await PullRequest.find({ repositoryId: repo._id }).sort({ updatedAt: -1 }).lean());
+  const prs = await PullRequest.find({ repositoryId: repo._id }).sort({ updatedAt: -1 }).lean();
+  res.json(await require("../services/ciService").withCi(repo._id, prs));
 });
 
 const branches = wrap(async (req, res) => {
@@ -103,41 +104,81 @@ const removeBranch = wrap(async (req, res) => {
   res.json(await gh.deleteBranch(repo, req.body?.name));
 });
 
+async function queueSandboxFix(req, filePath) {
+  if (!isAdmin(req.user)) throw new gh.HttpError(403, "The sandbox demo is only available to the workspace owner");
+  if (!filePath || typeof filePath !== "string") throw new gh.HttpError(400, "Missing filePath");
+  const basename = path.basename(filePath.replace(/^bugs[\\/]/, ""));
+  if (!/^[\w.-]+\.js$/.test(basename) || /\.test\.js$/.test(basename)) throw new gh.HttpError(400, "filePath must be a non-test .js file in bugs/");
+  const rel = `bugs/${basename}`;
+  const { job } = await createManualFixJob({ relativeFile: rel, requestedBy: req.user.username, userId: String(req.user.id) });
+  await createAiLog({ jobId: job.id, trigger: "manual", action: "Fix workflow queued", reasoning: `Manual sandbox fix for ${rel} by ${req.user.username}.`, status: "queued", filePath: rel, repoName: "sandbox" });
+  emitToUser(req.user.id, SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, filePath: rel });
+  return job;
+}
+
+async function queueRepoFix(req, repo, branch) {
+  branch = branch || repo.defaultBranch;
+  // Use the branch's current head on GitHub (the last sync may be stale, e.g. right after a merge).
+  let headSha = (repo.branches || []).find((x) => x.name === branch)?.commitSha;
+  try {
+    const octokit = await gh.repoOctokit(repo);
+    const { data } = await octokit.rest.repos.getBranch({ owner: repo.owner, repo: repo.name, branch });
+    headSha = data.commit.sha;
+  } catch (err) {
+    if (err.status === 404) throw new gh.HttpError(404, `Branch ${branch} does not exist on GitHub`);
+    if (!headSha) throw err;
+  }
+  if (!headSha) throw new gh.HttpError(400, `Branch ${branch} not found. Sync the repository first.`);
+  const { job } = await createManualFixJob({
+    repositoryId: String(repo._id),
+    repoFullName: repo.fullName,
+    headSha,
+    headBranch: branch,
+    baseBranch: branch,
+    requestedBy: req.user.username,
+    userId: String(req.user.id),
+  });
+  await createAiLog({ jobId: job.id, trigger: "manual", action: "Fix workflow queued", reasoning: `Manual run on ${repo.fullName}@${branch} by ${req.user.username}.`, status: "queued", repoName: repo.fullName, repositoryId: repo._id, headSha, headBranch: branch, baseBranch: branch });
+  emitToUser(req.user.id, SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, repoName: repo.fullName, repositoryId: String(repo._id) });
+  return job;
+}
+
 /**
  * POST /repos/:id/trigger-fix
  *  - id = "sandbox": { filePath: "bugs/x.js" } fixes a file in the local sandbox (TEST_REPO_PATH)
  *  - id = <repo id>: { branch? } clones the repo at the branch head, runs its tests, fixes what fails
  */
 const triggerFix = wrap(async (req, res) => {
-  if (req.params.id === "sandbox") {
-    if (!isAdmin(req.user)) throw new gh.HttpError(403, "The sandbox demo is only available to the workspace owner");
-    const { filePath } = req.body || {};
-    if (!filePath || typeof filePath !== "string") throw new gh.HttpError(400, "Missing filePath");
-    const basename = path.basename(filePath.replace(/^bugs[\\/]/, ""));
-    if (!/^[\w.-]+\.js$/.test(basename) || /\.test\.js$/.test(basename)) throw new gh.HttpError(400, "filePath must be a non-test .js file in bugs/");
-    const rel = `bugs/${basename}`;
-    const { job } = await createManualFixJob({ relativeFile: rel, requestedBy: req.user.username, userId: String(req.user.id) });
-    await createAiLog({ jobId: job.id, trigger: "manual", action: "Fix workflow queued", reasoning: `Manual sandbox fix for ${rel} by ${req.user.username}.`, status: "queued", filePath: rel, repoName: "sandbox" });
-    emitToUser(req.user.id, SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, filePath: rel });
-    return res.status(202).json({ ok: true, jobId: job.id });
-  }
-
-  const repo = await ownedRepo(req);
-  const branch = req.body?.branch || repo.defaultBranch;
-  const b = (repo.branches || []).find((x) => x.name === branch);
-  if (!b?.commitSha) throw new gh.HttpError(400, `Branch ${branch} not found. Sync the repository first.`);
-  const { job } = await createManualFixJob({
-    repositoryId: String(repo._id),
-    repoFullName: repo.fullName,
-    headSha: b.commitSha,
-    headBranch: branch,
-    baseBranch: branch,
-    requestedBy: req.user.username,
-    userId: String(req.user.id),
-  });
-  await createAiLog({ jobId: job.id, trigger: "manual", action: "Fix workflow queued", reasoning: `Manual run on ${repo.fullName}@${branch} by ${req.user.username}.`, status: "queued", repoName: repo.fullName, repositoryId: repo._id, headSha: b.commitSha, baseBranch: branch });
-  emitToUser(req.user.id, SOCKET_EVENTS.AI_FIX_STARTED, { jobId: job.id, repoName: repo.fullName, repositoryId: String(repo._id) });
+  const job = req.params.id === "sandbox" ? await queueSandboxFix(req, req.body?.filePath) : await queueRepoFix(req, await ownedRepo(req), req.body?.branch);
   res.status(202).json({ ok: true, jobId: job.id });
+});
+
+/** POST /ai/logs/:id/retry  re-runs a failed or skipped fix on the same target. */
+const retryRun = wrap(async (req, res) => {
+  const { AILog } = require("shared");
+  if (!mongoose.isValidObjectId(req.params.id)) throw new gh.HttpError(404, "Run not found");
+  const log = await AILog.findById(req.params.id).lean();
+  if (!log) throw new gh.HttpError(404, "Run not found");
+  if (["queued", "running"].includes(log.status)) throw new gh.HttpError(409, "This run is still in progress");
+  let job;
+  if (log.repositoryId) {
+    const repo = await ownedRepo(req, String(log.repositoryId));
+    const branch = log.headBranch || log.baseBranch;
+    if (!branch) throw new gh.HttpError(400, "This run has no branch recorded; start a new run from the AI Fixes page");
+    job = await queueRepoFix(req, repo, branch);
+  } else if (log.filePath) {
+    job = await queueSandboxFix(req, log.filePath);
+  } else {
+    throw new gh.HttpError(400, "This run cannot be re-run");
+  }
+  res.status(202).json({ ok: true, jobId: job.id });
+});
+
+/** GET /repos/:id/checks  recent CI check runs for a repository. */
+const checks = wrap(async (req, res) => {
+  const { CheckRun } = require("shared");
+  const repo = await ownedRepo(req);
+  res.json(await CheckRun.find({ repositoryId: repo._id }).sort({ startedAt: -1 }).limit(Number(req.query.limit) || 50).lean());
 });
 
 const getJob = wrap(async (req, res) => {
@@ -148,5 +189,5 @@ const getJob = wrap(async (req, res) => {
 
 module.exports = {
   ownedRepo, listConnected, listGithubRepos, connect, disconnect, getRepo, sync, retryWebhook,
-  commits, pullRequests, branches, merge, removeBranch, triggerFix, getJob,
+  commits, pullRequests, branches, merge, removeBranch, triggerFix, retryRun, checks, getJob,
 };

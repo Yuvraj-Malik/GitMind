@@ -208,6 +208,8 @@ async function syncRepository(repoDoc) {
             status: pr.state === "closed" ? (pr.merged_at ? "merged" : "closed") : "open",
             branch: pr.head?.ref,
             baseBranch: pr.base?.ref,
+            headSha: pr.head?.sha,
+            fromFork: pr.head?.repo?.full_name?.toLowerCase() !== `${owner}/${repo}`.toLowerCase(),
             author: pr.user?.login || null,
             url: pr.html_url,
             createdAt: new Date(pr.created_at),
@@ -222,7 +224,17 @@ async function syncRepository(repoDoc) {
       { _id: repoDoc._id },
       { $set: { branches, commits, defaultBranch, private: info.private, url: info.html_url, lastSyncedAt: new Date(), syncError: null } }
     );
-    return { success: true, branches: branches.length, commits: commits.length, pullRequests: prs.length };
+    // CI status for open PRs + default branch, then catch any failure a webhook missed.
+    let ci = null;
+    try {
+      const ciService = require("./ciService");
+      const fresh = await Repository.findById(repoDoc._id).select("-commits");
+      ci = await ciService.refreshChecks(fresh);
+      if (fresh.webhookStatus === "active" || process.env.AUTO_FIX_POLLING === "true") await ciService.sweepMissedFailures(fresh);
+    } catch (err) {
+      console.warn(`[github] CI refresh for ${repoDoc.fullName} failed:`, err.message);
+    }
+    return { success: true, branches: branches.length, commits: commits.length, pullRequests: prs.length, checkRuns: ci?.checkRuns ?? null };
   } catch (err) {
     const e = ghError(err, `Sync of ${repoDoc.fullName || repo} failed`);
     await Repository.updateOne({ _id: repoDoc._id }, { $set: { syncError: e.message } });
@@ -273,6 +285,7 @@ async function tokenInfo(userId) {
 }
 
 module.exports = {
+  repoOctokit,
   HttpError,
   userOctokit,
   listUserGithubRepos,

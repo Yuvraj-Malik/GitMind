@@ -104,7 +104,7 @@ code, pre, .mono { font-family: "JetBrains Mono", ui-monospace, "Cascadia Code",
 
 .table { width: 100%; border-collapse: collapse; }
 .table th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 10px 16px; border-bottom: 1px solid var(--border); }
-.table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
 .table tr:last-child td { border-bottom: 0; }
 .table tbody tr.clickable { cursor: pointer; }
 .table tbody tr.clickable:hover td { background: var(--panel-2); }

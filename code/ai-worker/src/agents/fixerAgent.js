@@ -111,6 +111,7 @@ async function runFixerAgentCore(payload, deps = {}) {
   const wait = deps.sleep || sleep;
   const verify = payload.verify || pairedTestVerifier(files);
   const maxAttempts = payload.maxAttempts || config.maxAttempts;
+  const progress = typeof payload.onProgress === "function" ? payload.onProgress : async () => {};
 
   let errorContext = errorLog || "";
   let lastError = null;
@@ -119,6 +120,7 @@ async function runFixerAgentCore(payload, deps = {}) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       let text;
+      await progress(`Asking the model for a patch (attempt ${attempt}/${maxAttempts})`, { attempt });
       try {
         const response = await llm.invoke(buildPrompt({ files, contextFiles, errorContext }));
         text = contentToString(response?.content ?? response);
@@ -148,6 +150,7 @@ async function runFixerAgentCore(payload, deps = {}) {
         verify,
         push,
         token: repo.token,
+        onProgress: progress,
       });
 
       if (push && !result.prUrl) {

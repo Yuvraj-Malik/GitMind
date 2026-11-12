@@ -9,8 +9,17 @@ const ws = require("../tools/repoWorkspace");
 const { writeAILog } = require("../services/db");
 const { publishEvent } = require("../services/events");
 
+/** Report a step of a running job: live to the dashboard, and saved so a refresh still shows it. */
+function makeProgress(jobId, base) {
+  return async (stage, extra = {}) => {
+    await publishEvent(SOCKET_EVENTS.AI_FIX_PROGRESS, { jobId, ...base, stage, ...extra });
+    await writeAILog({ jobId, stage });
+  };
+}
+
 /** Manual / sandbox mode: one bugs/*.js file, its paired test as the verifier. */
-async function buildManualContext(data) {
+async function buildManualContext(data, progress = async () => {}) {
+  await progress("Running the sandbox test");
   const repoDir = config.sandboxRepo;
   const rel = data.relativeFile;
   const abs = path.resolve(repoDir, rel);
@@ -54,18 +63,23 @@ async function resolveToken(data) {
 }
 
 /** Real-repo mode (webhook or manual): clone the repo at the commit, run its real test command. */
-async function buildWebhookContext(data) {
+async function buildWebhookContext(data, progress = async () => {}) {
   const [owner, name] = data.repoFullName.split("/");
   const token = await resolveToken(data);
+  await progress("Checking GitHub access");
   await preflightGithub({ owner, repo: name, token });
+  await progress(`Cloning ${data.repoFullName}@${String(data.headSha).slice(0, 7)}`);
   const repoDir = await ws.prepareWorkspace({ repoFullName: data.repoFullName, headSha: data.headSha, token });
   const repoConfig = ws.readRepoConfig(repoDir);
   const testCommand = repoConfig.testCommand || config.testCommand;
 
+  await progress("Installing dependencies");
   const install = ws.installDependencies(repoDir, repoConfig);
   if (!install.ok) throw new FixerError("validation", `Dependency install failed:\n${tail(install.output, 2000)}`);
 
+  await progress(`Running tests (${testCommand})`);
   const pre = runCommand(testCommand, { cwd: repoDir, timeoutMs: config.commandTimeoutMs });
+  await progress("Locating the failing code");
   const { files, contextFiles } = ws.selectFiles(repoDir, pre.output);
   return {
     repoDir,
@@ -82,6 +96,7 @@ async function buildWebhookContext(data) {
 }
 
 async function finish(jobId, base, result, extra = {}) {
+  await writeAILog({ jobId, stage: null });
   const event = result.ok ? SOCKET_EVENTS.AI_FIX_COMPLETED : SOCKET_EVENTS.AI_FIX_FAILED;
   await publishEvent(event, { jobId, ...base, ...result, ...extra });
   if (result.ok && result.prUrl) {
@@ -97,14 +112,15 @@ async function processFixJob(job) {
   const jobId = job.id;
   const trigger = data.trigger || "manual";
   const base = { trigger, repoName: data.repoFullName || "sandbox", repositoryId: data.repositoryId || undefined, userId: data.userId || undefined, headSha: data.headSha, prNumber: data.prNumber };
+  const progress = makeProgress(jobId, base);
   const started = Date.now();
 
-  await writeAILog({ jobId, ...base, action: "Fix in progress", status: "running" });
+  await writeAILog({ jobId, ...base, headBranch: data.headBranch, baseBranch: data.baseBranch, action: "Fix in progress", status: "running", stage: "Starting" });
   await publishEvent(SOCKET_EVENTS.AI_FIX_STARTED, { jobId, ...base, status: "running" });
 
   let ctx;
   try {
-    ctx = data.repoFullName ? await buildWebhookContext(data) : await buildManualContext(data);
+    ctx = data.repoFullName ? await buildWebhookContext(data, progress) : await buildManualContext(data, progress);
   } catch (err) {
     const stage = err.stage || "validation";
     const result = { ok: false, error: err.message, failed_at: stage, attempt: 0 };
@@ -132,6 +148,7 @@ async function processFixJob(job) {
     contextFiles: ctx.contextFiles,
     repo: ctx.repo,
     verify: ctx.verify,
+    onProgress: progress,
   });
   return finish(jobId, base, result);
 }

@@ -33,8 +33,8 @@ function Overview({ repoId }) {
       {overview.loading ? <Loading /> : overview.error && !o ? <ErrorState message={overview.error} onRetry={overview.reload} /> : (
         <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Stat label="Open pull requests" value={o.pullRequests.open} hint={`${o.pullRequests.aiOpen} opened by Git-Mind`} />
-          <Stat label="AI fix success rate" value={percent(o.aiRuns.successRate)} hint={`${o.aiRuns.success} of ${o.aiRuns.total} completed runs`} tone={o.aiRuns.successRate == null ? undefined : o.aiRuns.successRate >= 0.5 ? "ok" : "warn"} />
-          <Stat label="AI runs this week" value={o.aiRuns.last7Days} hint={o.aiRuns.last ? `last ${timeAgo(o.aiRuns.last.updatedAt)}` : "no runs yet"} />
+          <Stat label="CI pass rate (7 days)" value={percent(o.ci?.passRate)} hint={o.ci?.runs ? `${o.ci.passed} passed · ${o.ci.failed} failed · avg ${duration(o.ci.avgDurationMs)}` : "no CI runs reported yet"} tone={o.ci?.passRate == null ? undefined : o.ci.passRate >= 0.8 ? "ok" : "warn"} />
+          <Stat label="AI fix success rate" value={percent(o.aiRuns.successRate)} hint={`${o.aiRuns.success} of ${o.aiRuns.total} runs · ${o.aiRuns.last7Days} this week`} tone={o.aiRuns.successRate == null ? undefined : o.aiRuns.successRate >= 0.5 ? "ok" : "warn"} />
           <Stat label="Avg. time to fix" value={duration(o.aiRuns.avgDurationMs)} hint="from trigger to PR" />
         </div>
       )}

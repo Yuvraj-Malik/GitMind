@@ -29,6 +29,6 @@ export function percent(x) {
   return x == null ? "—" : `${Math.round(x * 100)}%`;
 }
 
-export const human = (v) => String(v || "").replace(/_/g, " ");
+export const human = (v) => String(v || "").replace(/_/g, " ").replace(/\bllm\b/gi, "LLM");
 
 export const isAiBranch = (b) => String(b || "").startsWith("ai/fix-");

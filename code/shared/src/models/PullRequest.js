@@ -7,6 +7,8 @@ const PullRequestSchema = new mongoose.Schema(
     status: String,
     branch: String,
     baseBranch: String,
+    headSha: String,
+    fromFork: Boolean,
     author: String,
     url: String,
     repositoryId: { type: mongoose.Schema.Types.ObjectId, ref: "Repository", index: true },

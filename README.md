@@ -192,9 +192,16 @@ curl -H "Authorization: Bearer <JWT>" http://localhost:4000/jobs/12
 | Nothing committed unless the project's tests pass; failed attempts rolled back | `githubOps.createFixBranchAndCommit` |
 | Expired/invalid token detected before the LLM is called | `githubOps.preflightGithub` |
 
+### CI data, live progress, re-runs
+
+- **CI on the dashboard:** every `check_run` webhook (and each Sync) is stored, so the Pull requests page shows each PR's CI result and build time, and Overview shows the 7-day CI pass rate and average build time.
+- **Missed-webhook recovery:** Render's free plan sleeps, and GitHub drops webhooks it can't deliver. Every 10 minutes the backend checks open PRs for failed CI with no fix run and queues one (`code/backend/src/services/ciService.js`). Duplicate runs are impossible because the queue job id is repo + commit.
+- **Live progress:** the worker reports each step (cloning, installing, running tests, attempt n/3, opening the PR), shown on the AI Fixes page.
+- **Re-run:** failed or skipped runs have a Re-run button (`POST /ai/logs/:id/retry`).
+
 ### Tests & benchmark
 
 ```bash
-npm test              # backend (8) + ai-worker (10) unit/integration tests, no network
+npm test              # backend (13) + ai-worker (12) unit/integration tests, no network
 npm run benchmark     # 8 fixture bugs × 3 runs against Gemini, no push → ai-worker/scripts/benchmark-results.md
 ```

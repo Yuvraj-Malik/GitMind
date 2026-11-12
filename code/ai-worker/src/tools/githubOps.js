@@ -87,6 +87,7 @@ async function createFixBranchAndCommit({
   verify,
   push = true,
   token = process.env.GITHUB_TOKEN,
+  onProgress = async () => {},
 }) {
   repoDir = path.resolve(repoDir);
   assertAllowedRepoDir(repoDir);
@@ -124,6 +125,7 @@ async function createFixBranchAndCommit({
       throw new FixerError("verification", "Patch made no changes to the files.", { retryable: true });
     }
 
+    await onProgress("Re-running tests on the patched code");
     const result = await verify(repoDir);
     verifyOutput = result.output || "";
     if (!result.ok) {
@@ -156,6 +158,7 @@ async function createFixBranchAndCommit({
 
   let pushSuccess = false;
   try {
+    await onProgress("Tests pass: pushing branch and opening pull request");
     const pushUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
     await git.push(pushUrl, `${branch}:refs/heads/${branch}`);
     pushSuccess = true;

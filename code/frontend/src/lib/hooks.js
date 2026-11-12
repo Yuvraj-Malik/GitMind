@@ -35,7 +35,8 @@ export function useApi(loader, deps = []) {
   return { ...state, reload: load };
 }
 
-const LIVE_EVENTS = ["AI_FIX_STARTED", "AI_FIX_COMPLETED", "AI_FIX_FAILED", "NEW_PR_CREATED", "NEW_NODE_ADDED"];
+const LIVE_EVENTS = ["AI_FIX_STARTED", "AI_FIX_COMPLETED", "AI_FIX_FAILED", "NEW_PR_CREATED", "NEW_NODE_ADDED", "CI_UPDATED"];
+let bumpTimer = null;
 
 /** One socket connection for the whole app; mirrors live events into the store. */
 export function useLiveEvents(enabled) {
@@ -49,10 +50,14 @@ export function useLiveEvents(enabled) {
     const onAny = (event, payload) => {
       const store = useStore.getState();
       if (event === "NOTIFICATION") return store.pushNotification(payload);
+      // Progress only updates the running row; it doesn't refetch every page.
+      if (event === "AI_FIX_PROGRESS") return store.jobProgress(payload);
       if (!LIVE_EVENTS.includes(event)) return;
       if (event === "AI_FIX_STARTED") store.jobStarted(payload);
       if (event === "AI_FIX_COMPLETED" || event === "AI_FIX_FAILED") store.jobFinished(payload);
-      store.bump();
+      // CI events come in bursts (one per check); coalesce refetches.
+      clearTimeout(bumpTimer);
+      bumpTimer = setTimeout(() => useStore.getState().bump(), event === "CI_UPDATED" ? 1500 : 0);
     };
     st.setConnection("connecting");
     s.on("connect", onConnect);

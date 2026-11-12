@@ -62,6 +62,8 @@ const useStore = create((set, get) => ({
   setConnection: (connection) => set({ connection }),
   bump: () => set((s) => ({ dataVersion: s.dataVersion + 1 })),
   jobStarted: (p) => p?.jobId && set((s) => ({ activeJobs: { ...s.activeJobs, [p.jobId]: p } })),
+  jobProgress: (p) =>
+    p?.jobId && set((s) => ({ activeJobs: { ...s.activeJobs, [p.jobId]: { ...(s.activeJobs[p.jobId] || {}), ...p } } })),
   jobFinished: (p) =>
     set((s) => {
       const next = { ...s.activeJobs };

@@ -56,6 +56,8 @@ app.get("/repos/:id/branches", repos.branches);
 app.post("/repos/:id/pull-requests/:number/merge", rateLimit({ name: "merge", max: 10 }), repos.merge);
 app.post("/repos/:id/branches/delete", rateLimit({ name: "branch", max: 20 }), repos.removeBranch);
 app.post("/repos/:id/trigger-fix", rateLimit({ name: "trigger-fix", max: 3 }), repos.triggerFix);
+app.get("/repos/:id/checks", repos.checks);
+app.post("/ai/logs/:id/retry", rateLimit({ name: "trigger-fix", max: 3 }), repos.retryRun);
 
 app.use((error, req, res, next) => {
   const status = error.status || 500;
@@ -80,6 +82,7 @@ async function migrateIndexes() {
 connectDb()
   .then(async () => {
     await migrateIndexes();
+    require("./services/ciService").startCiSweeper();
     startEventsBridge().catch((err) => console.warn("[backend] live updates disabled, Redis unavailable:", err.message));
     server.listen(env.port, "0.0.0.0", () => console.log(`[backend] listening on 0.0.0.0:${env.port}`));
     // Free hosting has room for one process: optionally run the AI worker inside the API server.

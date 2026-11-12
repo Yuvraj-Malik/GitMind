@@ -8,6 +8,7 @@ const PullRequest = require("./models/PullRequest");
 const Repository = require("./models/Repository");
 const User = require("./models/User");
 const Notification = require("./models/Notification");
+const CheckRun = require("./models/CheckRun");
 
 module.exports = {
   ...constants,
@@ -19,4 +20,5 @@ module.exports = {
   Repository,
   User,
   Notification,
+  CheckRun,
 };

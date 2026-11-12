@@ -78,10 +78,12 @@ async function getOverview(req, res, next) {
       AILog.findOne({ ...logScope, status: { $in: ["success", "failed", "skipped"] } }).sort({ updatedAt: -1 }).lean(),
       AILog.find({ ...logScope, durationMs: { $gt: 0 } }).sort({ createdAt: -1 }).limit(50).select("durationMs").lean(),
     ]);
+    const ci = await require("../services/ciService").ciStats(ids);
     const avgMs = durations.length ? Math.round(durations.reduce((s, d) => s + d.durationMs, 0) / durations.length) : null;
     res.json({
       repository: repo ? { id: String(repo._id), name: repo.name, owner: repo.owner, fullName: repo.fullName, url: repo.url, lastSyncedAt: repo.lastSyncedAt, syncError: repo.syncError, webhookStatus: repo.webhookStatus, branchCount: repo.branches?.length || 0 } : null,
       connectedRepos: ids.length,
+      ci,
       pullRequests: { open: openPrs, aiOpen: aiOpenPrs },
       aiRuns: { total: totalRuns, success: successRuns, failed: failedRuns, last7Days: weekRuns, successRate: totalRuns ? successRuns / totalRuns : null, avgDurationMs: avgMs, last: lastRun },
     });

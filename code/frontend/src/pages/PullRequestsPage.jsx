@@ -5,6 +5,19 @@ import { useApi } from "../lib/hooks";
 import useStore from "../store";
 import { fullDate, isAiBranch, timeAgo } from "../lib/format";
 import { AsyncView, Card, Empty, ExtLink, PageHeader, StatusBadge } from "../components/ui";
+import { duration } from "../lib/format";
+
+function CiBadge({ ci }) {
+  if (!ci) return <span className="faint text-[12px]" title="No CI checks reported for this commit">—</span>;
+  const tone = { passing: "badge-ok", failing: "badge-bad", pending: "badge-warn" }[ci.state];
+  const label = ci.state === "pending" ? `running ${ci.total - ci.pending}/${ci.total}` : `${ci.passed}/${ci.total} passed`;
+  return (
+    <a href={ci.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2" title={ci.checks.map((c) => `${c.name}: ${c.conclusion || c.status}`).join("\n")}>
+      <span className={`badge ${tone} normal-case`}><span className={`dot ${ci.state === "pending" ? "pulse" : ""}`} />{label}</span>
+      {ci.durationMs != null && <span className="faint text-[12px]">{duration(ci.durationMs)}</span>}
+    </a>
+  );
+}
 import RequireRepo from "../components/RequireRepo";
 
 const FILTERS = ["open", "merged", "closed", "all"];
@@ -72,17 +85,18 @@ function PullRequests({ repo }) {
           {() => (
             <div className="overflow-x-auto">
               <table className="table">
-                <thead><tr><th>Pull request</th><th>Branch</th><th>Author</th><th>Status</th><th>Updated</th><th /></tr></thead>
+                <thead><tr><th>Pull request</th><th>Branch</th><th>CI</th><th>Author</th><th>Status</th><th>Updated</th><th /></tr></thead>
                 <tbody>
                   {list.map((pr) => (
                     <tr key={pr._id}>
-                      <td className="max-w-[380px]">
-                        <div className="flex items-center gap-2">
-                          {isAiBranch(pr.branch) && <span className="badge badge-ok normal-case"><Bot size={12} /> AI</span>}
-                          <ExtLink href={pr.url}><span className="truncate">#{pr.number} {pr.title || ""}</span></ExtLink>
+                      <td style={{ maxWidth: 280 }}>
+                        <div className="flex min-w-0 items-center gap-2">
+                          {isAiBranch(pr.branch) && <span className="badge badge-ok shrink-0 normal-case"><Bot size={12} /> AI</span>}
+                          <a href={pr.url} target="_blank" rel="noreferrer" className="min-w-0 truncate hover:underline" style={{ color: "var(--accent)" }} title={pr.title || ""}>#{pr.number} {pr.title || ""}</a>
                         </div>
                       </td>
-                      <td className="mono muted max-w-[220px] truncate text-[12px]">{pr.branch || "—"}{pr.baseBranch ? ` → ${pr.baseBranch}` : ""}</td>
+                      <td className="mono muted truncate text-[12px]" style={{ maxWidth: 170 }} title={`${pr.branch || ""}${pr.baseBranch ? ` → ${pr.baseBranch}` : ""}`}>{pr.branch || "—"}{pr.baseBranch ? ` → ${pr.baseBranch}` : ""}</td>
+                      <td><CiBadge ci={pr.ci} /></td>
                       <td className="muted">{pr.author || "—"}</td>
                       <td><StatusBadge status={pr.status} /></td>
                       <td className="muted" title={fullDate(pr.updatedAt)}>{timeAgo(pr.updatedAt)}</td>

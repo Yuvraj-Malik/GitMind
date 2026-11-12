@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bot, Play, X } from "lucide-react";
+import { Bot, Play, RotateCcw, X } from "lucide-react";
 import { api, errorMessage } from "../lib/api";
 import { useActiveRepo, useApi } from "../lib/hooks";
 import useStore from "../store";
@@ -84,13 +84,50 @@ function SandboxPanel() {
   );
 }
 
+function RetryButton({ run }) {
+  const [state, setState] = useState({ busy: false, msg: null, error: null });
+  const jobStarted = useStore((s) => s.jobStarted);
+  const bump = useStore((s) => s.bump);
+  const retry = async () => {
+    setState({ busy: true, msg: null, error: null });
+    try {
+      const r = await api.retryRun(run._id);
+      jobStarted({ jobId: r.jobId });
+      setState({ busy: false, msg: `Queued as job #${r.jobId}`, error: null });
+      bump();
+    } catch (e) {
+      setState({ busy: false, msg: null, error: errorMessage(e) });
+    }
+  };
+  return (
+    <span className="inline-flex items-center gap-2">
+      {state.msg && <span className="text-[12px]" style={{ color: "var(--ok)" }}>{state.msg}</span>}
+      {state.error && <span className="text-[12px]" style={{ color: "var(--bad)" }}>{state.error}</span>}
+      <button className="btn" onClick={retry} disabled={state.busy || !!state.msg}><RotateCcw size={14} /> {state.busy ? "Queuing…" : "Re-run"}</button>
+    </span>
+  );
+}
+
 function RunDetail({ run, onClose }) {
+  const live = useStore((s) => s.activeJobs[run.jobId]);
+  const stage = live?.stage || run.stage;
+  const canRetry = ["failed", "skipped"].includes(run.status);
   return (
     <Card
       title={<span className="inline-flex items-center gap-2">Run {run.jobId ? `#${run.jobId}` : ""} <StatusBadge status={run.status} /></span>}
-      actions={<button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close"><X size={15} /></button>}
+      actions={
+        <span className="inline-flex items-center gap-2">
+          {canRetry && <RetryButton key={run._id} run={run} />}
+          <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close"><X size={15} /></button>
+        </span>
+      }
       className="mt-6"
     >
+      {(run.status === "running" || run.status === "queued") && (
+        <div className="mb-4 flex items-center gap-2 text-[13px]" style={{ color: "var(--warn)" }}>
+          <span className="dot pulse" /> {stage || (run.status === "queued" ? "Waiting for the worker…" : "Working…")}
+        </div>
+      )}
       <dl className="m-0 mb-4 grid grid-cols-2 gap-x-6 gap-y-3 text-[13px] md:grid-cols-4">
         {[
           ["Target", run.filePath || run.repoName || "—"],
@@ -98,7 +135,7 @@ function RunDetail({ run, onClose }) {
           ["Attempts", run.attempt ?? "—"],
           ["Duration", duration(run.durationMs)],
           ["Failed at", run.failedAt ? human(run.failedAt) : "—"],
-          ["Branch", run.branch || "—"],
+          ["Branch", run.branch || run.headBranch || run.baseBranch || "—"],
           ["Started", fullDate(run.createdAt)],
           ["Pull request", run.prUrl ? <ExtLink href={run.prUrl}>Open PR</ExtLink> : "—"],
         ].map(([k, v]) => (
@@ -118,6 +155,7 @@ function RunDetail({ run, onClose }) {
 }
 
 export default function AiFixesPage() {
+  const activeJobs = useStore((s) => s.activeJobs);
   const repo = useActiveRepo();
   const runs = useApi(() => api.aiLogs(repo?.id), [repo?.id]);
   const [filter, setFilter] = useState("all");
@@ -153,7 +191,12 @@ export default function AiFixesPage() {
                 <tbody>
                   {filtered.map((r) => (
                     <tr key={r._id} className={`clickable ${r._id === selectedId ? "selected" : ""}`} onClick={() => setSelectedId(r._id === selectedId ? null : r._id)}>
-                      <td><StatusBadge status={r.status} label={r.status === "failed" && r.failedAt ? `failed · ${human(r.failedAt)}` : undefined} /></td>
+                      <td>
+                        <StatusBadge status={r.status} label={r.status === "failed" && r.failedAt ? `failed · ${human(r.failedAt)}` : undefined} />
+                        {(r.status === "running" || r.status === "queued") && (activeJobs[r.jobId]?.stage || r.stage) && (
+                          <div className="faint mt-1 max-w-[260px] truncate text-[11px]">{activeJobs[r.jobId]?.stage || r.stage}</div>
+                        )}
+                      </td>
                       <td className="mono max-w-[260px] truncate text-[12px]">{r.filePath || r.repoName || "—"}</td>
                       <td className="muted capitalize">{r.trigger || "—"}</td>
                       <td className="muted">{r.attempt ?? "—"}</td>

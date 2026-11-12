@@ -16,10 +16,6 @@ const worker = new Worker(
   async (job) => {
     console.log(`[ai-worker] picked up job ${job.id} (${job.name})`);
     if (job.name === "fix-code") return processFixJob(job);
-    if (job.name === "rag-query") {
-      const { runRagAgent } = require("../agents/ragAgent");
-      return runRagAgent(job.data);
-    }
     return { skipped: true };
   },
   {

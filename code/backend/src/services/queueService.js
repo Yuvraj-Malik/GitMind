@@ -52,8 +52,5 @@ async function getJobStatus(jobId) {
   };
 }
 
-async function createRagQueryJob(payload) {
-  return getQueue().add("rag-query", payload);
-}
 
-module.exports = { createWebhookFixJob, createManualFixJob, getJobStatus, createRagQueryJob, getQueue };
+module.exports = { createWebhookFixJob, createManualFixJob, getJobStatus, getQueue };

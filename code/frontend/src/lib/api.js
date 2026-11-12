@@ -67,6 +67,8 @@ export const api = {
   activity: (repoId) => get("/activity", q(repoId)),
   aiLogs: (repoId) => get("/ai/logs", q(repoId)),
   triggerRepoFix: (repoId, branch) => post(`/repos/${repoId}/trigger-fix`, { branch }),
+  retryRun: (logId) => post(`/ai/logs/${logId}/retry`, {}),
+  checks: (repoId) => get(`/repos/${repoId}/checks`),
 
   // Local sandbox (fixture bugs)
   sandboxFiles: () => get("/sandbox/files"),
