@@ -144,3 +144,41 @@ test("file selection works when the repo path contains spaces (Windows-style use
   assert.deepStrictEqual(files.map((f) => f.filepath), ["src/cart.js"]);
   assert.deepStrictEqual(contextFiles.map((f) => f.filepath), ["test/cart.test.js"]);
 });
+
+test("regression: a failed commit doesn't leave the fix staged and break the next attempt", async () => {
+  // A pre-commit hook that rejects the first commit (like a missing git identity on Render), then allows it.
+  const hook = path.join(tmp, ".git", "hooks", "pre-commit");
+  const marker = path.join(tmp, ".git", "hook-ran");
+  fs.writeFileSync(hook, `#!/bin/sh\nif [ ! -f "${marker}" ]; then touch "${marker}"; echo "simulated commit failure" >&2; exit 1; fi\nexit 0\n`, { mode: 0o755 });
+  try {
+    const llm = { invoke: async () => ({ content: GOOD }) };
+    const r = await runFixerAgentCore(
+      { prNumber: 9, files: [{ filepath: "src/sum.js", content: fs.readFileSync(path.join(tmp, "src/sum.js"), "utf8") }], errorLog: "e", repo: { dir: tmp, baseRef: "main" }, verify, push: false, maxAttempts: 2 },
+      { llm, sleep: async () => {} }
+    );
+    assert.strictEqual(r.ok, true, r.error);
+    assert.strictEqual(r.attempt, 2);
+  } finally {
+    fs.unlinkSync(hook);
+  }
+});
+
+test("commits use the Git-Mind identity even when git has none configured", async () => {
+  const before = execSync("git config user.name", { cwd: tmp }).toString().trim();
+  execSync("git config --unset user.name && git config --unset user.email", { cwd: tmp });
+  const env = { ...process.env };
+  process.env.GIT_CONFIG_GLOBAL = "/dev/null"; process.env.GIT_CONFIG_NOSYSTEM = "1";
+  try {
+    const llm = { invoke: async () => ({ content: GOOD }) };
+    const r = await runFixerAgentCore(
+      { prNumber: 10, files: [{ filepath: "src/sum.js", content: fs.readFileSync(path.join(tmp, "src/sum.js"), "utf8") }], errorLog: "e", repo: { dir: tmp, baseRef: "main" }, verify, push: false, maxAttempts: 1 },
+      { llm, sleep: async () => {} }
+    );
+    assert.strictEqual(r.ok, true, r.error);
+    const author = execSync(`git log -1 --format=%an ${r.branch}`, { cwd: tmp }).toString().trim();
+    assert.strictEqual(author, "Git-Mind");
+  } finally {
+    process.env = env;
+    execSync(`git config user.name "${before}" && git config user.email t@t`, { cwd: tmp });
+  }
+});

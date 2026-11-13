@@ -7,6 +7,9 @@ const { isTestFile, AI_FIX_BRANCH_PREFIX } = require("shared");
 const config = require("../config");
 const { scrubToken, tail } = require("./shell");
 
+const COMMIT_NAME = process.env.GIT_COMMIT_NAME || "Git-Mind";
+const COMMIT_EMAIL = process.env.GIT_COMMIT_EMAIL || "git-mind@users.noreply.github.com";
+
 /** Error carrying the pipeline stage it failed in and whether the fixer may retry. */
 class FixerError extends Error {
   constructor(stage, message, { retryable = false } = {}) {
@@ -120,7 +123,8 @@ async function createFixBranchAndCommit({
       fs.writeFileSync(fullPath, content);
     }
 
-    const diff = await git.diff(["--stat"]);
+    // Compare with the last commit (not the index), so a change left staged by an earlier attempt can't hide this one.
+    const diff = await git.diff(["HEAD", "--stat", "--", ...filesToPatch.map((f) => f.filepath)]);
     if (!diff.trim()) {
       throw new FixerError("verification", "Patch made no changes to the files.", { retryable: true });
     }
@@ -133,12 +137,16 @@ async function createFixBranchAndCommit({
     }
 
     for (const file of filesToPatch) await git.add(file.filepath);
-    await git.commit(`fix: ${patchProposal.summary || `automated fix for PR #${prNumber || "manual"}`}`.slice(0, 200));
+    // Servers (e.g. Render) have no git identity configured; always commit as the Git-Mind bot.
+    const message = `fix: ${patchProposal.summary || `automated fix for PR #${prNumber || "manual"}`}`.slice(0, 200);
+    await git.raw(["-c", `user.name=${COMMIT_NAME}`, "-c", `user.email=${COMMIT_EMAIL}`, "commit", "-m", message]);
   } catch (e) {
     for (const o of originals) {
       if (o.content !== null) fs.writeFileSync(o.path, o.content);
       else if (fs.existsSync(o.path)) fs.unlinkSync(o.path);
     }
+    // Unstage anything this attempt added, so the next attempt starts from a clean index.
+    try { await git.raw(["reset", "-q", "--", ...filesToPatch.map((f) => f.filepath)]); } catch (_) { /* nothing staged */ }
     try {
       await checkoutBase(git, baseRef);
       await git.deleteLocalBranch(branch, true);
